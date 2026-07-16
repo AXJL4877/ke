@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { TaskCard } from "./TaskCard";
+import type { ModuleManifest } from "@/types/module";
 
 type Task = {
   id: string;
@@ -13,7 +14,13 @@ type Task = {
   created_at: string;
 };
 
-export function TaskQueueList({ moduleId }: { moduleId?: string }) {
+export function TaskQueueList({
+  moduleId,
+  modules,
+}: {
+  moduleId?: string;
+  modules?: ModuleManifest[];
+}) {
   const { data, isLoading, error } = useQuery({
     queryKey: ["tasks", moduleId],
     queryFn: () => {
@@ -39,7 +46,11 @@ export function TaskQueueList({ moduleId }: { moduleId?: string }) {
   return (
     <ul className="space-y-3">
       {data.map((t) => (
-        <TaskCard key={t.id} task={t} />
+        <TaskCard
+          key={t.id}
+          task={t}
+          manifest={modules?.find((m) => m.id === t.module_id)}
+        />
       ))}
     </ul>
   );

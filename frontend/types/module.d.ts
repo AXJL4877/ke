@@ -3,8 +3,12 @@
  */
 export type FieldType = "string" | "number" | "enum" | "boolean" | "file" | "file[]";
 
+export type FieldFormat = "textarea";
+
 export type FieldSpec = {
   type: FieldType;
+  /** string 专用：textarea = 多行（§3） */
+  format?: FieldFormat;
   required?: boolean;
   label?: string;
   description?: string;

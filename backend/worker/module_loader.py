@@ -92,13 +92,23 @@ class ModuleLoader:
 
     def _load_handler(self, folder: Path, module_id: str) -> Any:
         path = folder / "handler.py"
-        spec_name = f"ke_modules.{module_id.replace('-', '_')}"
-        spec = importlib.util.spec_from_file_location(spec_name, path)
+        pkg = f"ke_modules.{module_id.replace('-', '_')}"
+        # Allow sibling imports: `import client` / `from .client import ...`
+        folder_str = str(folder.resolve())
+        if folder_str not in sys.path:
+            sys.path.insert(0, folder_str)
+
+        spec = importlib.util.spec_from_file_location(
+            f"{pkg}.handler",
+            path,
+            submodule_search_locations=[folder_str],
+        )
         if spec is None or spec.loader is None:
             raise ModuleLoadError(f"cannot import handler for {module_id}")
         mod = importlib.util.module_from_spec(spec)
-        # Prefer function-style run() so handlers need not import BaseModuleHandler
-        sys.modules[spec_name] = mod
+        mod.__package__ = pkg
+        sys.modules[f"{pkg}.handler"] = mod
+        sys.modules[pkg] = mod  # keep legacy alias used by reload()
         spec.loader.exec_module(mod)
 
         handler_cls = getattr(mod, "Handler", None)

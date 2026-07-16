@@ -7,8 +7,10 @@
   "input_schema": {
     "message": {
       "type": "string",
+      "format": "textarea",
       "required": true,
       "label": "消息",
+      "description": "原样回显；用于验证 DynamicForm textarea",
       "default": "hello"
     }
   },

@@ -18,16 +18,21 @@ Label.displayName = "Label";
 
 export function FormField({
   label,
+  description,
   error,
   children,
 }: {
   label: string;
+  description?: string;
   error?: string;
   children: React.ReactNode;
 }) {
   return (
     <div className="space-y-1.5">
       <Label>{label}</Label>
+      {description ? (
+        <p className="text-xs text-muted-foreground">{description}</p>
+      ) : null}
       {children}
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
