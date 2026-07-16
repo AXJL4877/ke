@@ -1,0 +1,28 @@
+{
+  "id": "echo",
+  "name": "回声示例",
+  "description": "壳自带示例模块：原样返回参数，用于验证注册与任务链路",
+  "version": "1.0.0",
+  "category": "system",
+  "input_schema": {
+    "message": {
+      "type": "string",
+      "required": true,
+      "label": "消息",
+      "default": "hello"
+    }
+  },
+  "output_schema": {
+    "echo": {
+      "type": "string"
+    }
+  },
+  "ui_hint": {
+    "form_layout": "vertical",
+    "icon": "message"
+  },
+  "runtime": {
+    "async": false,
+    "timeout_seconds": 30
+  }
+}
