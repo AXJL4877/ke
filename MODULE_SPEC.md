@@ -292,6 +292,7 @@ class Handler(BaseModuleHandler):
 | text_to_voice | tts | text |
 | video_creat | compose | video |
 | video_download | download | video |
+| video_remotion | remotion | video |
 | rich_txt | richtext | text |
 | AI_in | ai-in | text |
 
