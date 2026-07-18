@@ -1,0 +1,221 @@
+{
+  "schema_version": "1.0.0",
+  "description": "ke 可接入的本机 HTTP 模块目录。AI/脚手架按 service_id 查表取 git_url、默认路径与依赖，勿写死端口。",
+  "owner": "AXJL4877",
+  "default_layout": {
+    "comment": "clone ke 后，源模块建议放在与 ke 同级，或 ke/deps/<folder>/",
+    "sibling_glob": "../{folder}",
+    "deps_glob": "./deps/{folder}",
+    "mo_kuai_glob": "../mo_kuai/{folder}"
+  },
+  "modules": [
+    {
+      "service_id": "download",
+      "folder": "video_download",
+      "name": "视频下载",
+      "label": "video_download",
+      "category": "video",
+      "git_url": "https://github.com/AXJL4877/video_download.git",
+      "visibility": "private",
+      "default_port": 8789,
+      "env_port": "PORT",
+      "env_base_url": "DOWNLOAD_BASE_URL",
+      "stack": "node",
+      "proxy_prefixes": ["/download-api", "/download-health"],
+      "depends_on": [],
+      "must_keep_highlights": [
+        "cookie-auto-resolve",
+        "cookie-one-click-import",
+        "risk-control-headers",
+        "job-progress"
+      ],
+      "notes": "B站等站点勿默认 cookiesFromBrowser=edge；走 cookies/*.txt 或一键导入。"
+    },
+    {
+      "service_id": "asr",
+      "folder": "audio_asr",
+      "name": "语音转写",
+      "label": "audio_asr",
+      "category": "text",
+      "git_url": "https://github.com/AXJL4877/audio_asr.git",
+      "visibility": "private",
+      "default_port": 8791,
+      "env_port": "ASR_PORT",
+      "env_base_url": "ASR_BASE_URL",
+      "stack": "python",
+      "proxy_prefixes": ["/asr-api", "/asr-health"],
+      "depends_on": [],
+      "must_keep_highlights": ["run-core", "video-audio-extract", "multi-format-output"],
+      "notes": "视频输入需 ffmpeg；识别走必剪 Bcut 网络 API。"
+    },
+    {
+      "service_id": "transcript",
+      "folder": "video_transcript",
+      "name": "视频转文案编排",
+      "label": "video_transcript",
+      "category": "text",
+      "git_url": "https://github.com/AXJL4877/video_transcript.git",
+      "visibility": "public",
+      "default_port": 8799,
+      "env_port": "TRANSCRIPT_PORT",
+      "env_base_url": "TRANSCRIPT_BASE_URL",
+      "stack": "python",
+      "proxy_prefixes": ["/transcript-api", "/transcript-health"],
+      "depends_on": ["download", "asr"],
+      "must_keep_highlights": [
+        "run-core",
+        "cookie-passthrough",
+        "archive-crud",
+        "downstream-health",
+        "job-progress"
+      ],
+      "notes": "编排模块：须同时接入/拉起 download + asr；代理 /cookies 经 transcript 透传。"
+    },
+    {
+      "service_id": "tts",
+      "folder": "text_to_voice",
+      "name": "文本转语音",
+      "label": "text_to_voice",
+      "category": "text",
+      "git_url": "https://github.com/AXJL4877/text_to_voice.git",
+      "visibility": "private",
+      "default_port": 8765,
+      "env_port": "TTS_PORT",
+      "env_base_url": "TTS_BASE_URL",
+      "stack": "python",
+      "proxy_prefixes": ["/tts-api"],
+      "depends_on": [],
+      "must_keep_highlights": ["tts-core", "voice-library", "emotion-modes", "serialized-inference"],
+      "notes": "GPU 串行推理；首次需模型权重。超时宜 ≥600s。"
+    },
+    {
+      "service_id": "compose",
+      "folder": "video_creat",
+      "name": "分镜合成竖屏视频",
+      "label": "video_creat",
+      "category": "video",
+      "git_url": "https://github.com/AXJL4877/video_creat.git",
+      "visibility": "private",
+      "default_port": 8787,
+      "env_port": "PORT",
+      "env_base_url": "COMPOSE_BASE_URL",
+      "stack": "node",
+      "proxy_prefixes": ["/compose", "/compose-health"],
+      "depends_on": [],
+      "must_keep_highlights": ["compose-core", "crossfade-align"],
+      "notes": "POST /compose 返回 video/mp4 二进制，非 JSON；schema file[] 需 handler 转 dataURL。"
+    },
+    {
+      "service_id": "remotion",
+      "folder": "video_remotion",
+      "name": "Remotion 模板渲染",
+      "label": "video_remotion",
+      "category": "video",
+      "git_url": "https://github.com/AXJL4877/video_remotion.git",
+      "visibility": "private",
+      "default_port": 8797,
+      "env_port": "PORT",
+      "env_base_url": "REMOTION_BASE_URL",
+      "stack": "node",
+      "proxy_prefixes": ["/remotion-api", "/remotion-health"],
+      "depends_on": [],
+      "must_keep_highlights": [
+        "render-core",
+        "compositions-list",
+        "job-progress",
+        "template-extension"
+      ],
+      "notes": "异步 job；需 Chromium。Remotion 许可证非 MIT，商用前自查。"
+    },
+    {
+      "service_id": "richtext",
+      "folder": "rich_txt",
+      "name": "富文本编辑",
+      "label": "rich_txt",
+      "category": "text",
+      "git_url": "https://github.com/AXJL4877/rich_txt.git",
+      "visibility": "private",
+      "default_port": 8793,
+      "env_port": "RICH_TXT_PORT",
+      "env_base_url": "RICH_TXT_BASE_URL",
+      "stack": "node",
+      "proxy_prefixes": ["/rich-txt-api", "/rich-txt-health"],
+      "depends_on": [],
+      "must_keep_highlights": ["process-core", "image-upload", "file-serve"],
+      "notes": "须代理 /upload 与 /files；可用 fast_completion_ok（纯转换很快）。"
+    },
+    {
+      "service_id": "ai-in",
+      "folder": "AI_in",
+      "name": "多上游 AI 网关",
+      "label": "ai_in",
+      "category": "text",
+      "git_url": "https://github.com/AXJL4877/AI_in.git",
+      "visibility": "private",
+      "default_port": 8795,
+      "env_port": "AI_IN_PORT",
+      "env_base_url": "AI_IN_BASE_URL",
+      "stack": "python",
+      "proxy_prefixes": ["/ai-in-api", "/ai-in-health"],
+      "depends_on": [],
+      "must_keep_highlights": [
+        "run-core",
+        "models-list",
+        "model-params",
+        "config-store",
+        "image-gen"
+      ],
+      "notes": "需配置 API Key；/run 为 multipart。模型名勿写死，运行时拉 /models。"
+    }
+  ],
+  "recipes": [
+    {
+      "id": "collect-transcript",
+      "name": "链接采集转文案",
+      "modules": ["transcript", "download", "asr"],
+      "description": "URL → 下载音频 → ASR → 归档。指定 transcript 时自动带上 download+asr。"
+    },
+    {
+      "id": "tts-only",
+      "name": "文本转语音",
+      "modules": ["tts"],
+      "description": "本机 IndexTTS2 合成。"
+    },
+    {
+      "id": "vertical-compose",
+      "name": "分镜竖屏成片",
+      "modules": ["compose"],
+      "description": "图片+音频合成 720×1280 MP4；常与 tts 联用。"
+    },
+    {
+      "id": "voice-vertical",
+      "name": "配音+竖屏成片",
+      "modules": ["tts", "compose"],
+      "description": "先 TTS 再 compose。"
+    },
+    {
+      "id": "remotion-render",
+      "name": "模板渲染",
+      "modules": ["remotion"],
+      "description": "Remotion composition 渲染。"
+    },
+    {
+      "id": "rich-edit",
+      "name": "富文本处理",
+      "modules": ["richtext"],
+      "description": "wangEditor HTML/Markdown。"
+    },
+    {
+      "id": "ai-gateway",
+      "name": "云端 AI 能力",
+      "modules": ["ai-in"],
+      "description": "对话/生图/视频/TTS/转写网关。"
+    },
+    {
+      "id": "full-media-pipeline",
+      "name": "采集+配音+成片（大组合）",
+      "modules": ["transcript", "download", "asr", "tts", "compose"],
+      "description": "转写后配音再合成；接入成本高，按需裁剪。"
+    }
+  ]
+}

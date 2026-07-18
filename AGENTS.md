@@ -14,20 +14,26 @@
 ## 标准接入 SOP
 
 ```text
-1. 取得源模块（本地路径或 git clone）
+0. 查 modules.catalog.json（或 python scripts/resolve_catalog.py resolve <id…> / recipe <配方>）
+1. 取得源模块：git clone catalog.git_url → ke/deps/<folder> 或同级目录（私有仓需已登录 gh）
 2. 读 module.json → capabilities[]（逐条）+ AGENTS.md
 3. python -m scripts.gen_contract --source <源>/module.json --module-id <id> --out modules/<id>/integration.contract.json
 4. 复制 modules/_template/ 为 modules/<id>/，改 module.json / handler
-5. 补齐 proxy / UI（cookie、upload 等 wiring=proxy 项）
+5. 补齐 proxy / UI（cookie、upload 等 wiring=proxy 项）；前缀见 catalog.proxy_prefixes
 6. 把 manual_acceptance[].accepted 在人工验收后改为 true
 7. .\scripts\verify-integration.ps1 -StrictManual
 8. pytest backend/tests -q
 ```
 
+用户说「用 transcript」时：以 catalog 的 `depends_on` / `recipes` 展开（transcript → 含 download+asr），禁止只接编排、漏下游。
+
 ## 关键文件
 
 | 路径 | 用途 |
 |------|------|
+| `modules.catalog.json` | 模块 GitHub / 端口 / 依赖 / 配方目录 |
+| `scripts/resolve_catalog.py` | list / resolve / recipe / clone-cmds |
+| `schema/modules.catalog.schema.json` | 目录 Schema |
 | `schema/integration.contract.schema.json` | 契约 JSON Schema |
 | `backend/core/integration_contract.py` | 加载/覆盖校验/结果证据 |
 | `backend/core/local_service_bridge.py` | 服务发现 + HTTP/multipart/二进制/轮询 |

@@ -29,10 +29,13 @@
 ke/
 ├── MODULE_SPEC.md
 ├── AGENTS.md                 # AI 接入 SOP
+├── modules.catalog.json      # 可接入模块目录（GitHub / 依赖 / 配方）
 ├── docs/INTEGRATION_GUIDE.md # 人读接入详解
 ├── schema/integration.contract.schema.json
+├── schema/modules.catalog.schema.json
 ├── .cursor/rules/            # 始终生效的接入规则
 ├── scripts/verify-integration.ps1
+├── scripts/resolve_catalog.py       # 查目录 / 展开依赖 / 打印 clone 命令
 ├── scripts/Start-LocalServices.ps1  # 契约下游静默拉起
 ├── start.bat / start.ps1            # 壳 + 下游一键静默
 ├── stop.bat / stop.ps1
@@ -50,6 +53,19 @@ ke/
     ├── scripts/                      # gen_contract / check_contracts
     └── tests/
 ```
+
+## 模块目录（选哪几个）
+
+克隆 ke 后先看 [modules.catalog.json](./modules.catalog.json)：每个模块的 `service_id`、`git_url`、端口、`depends_on`、常用配方。
+
+```powershell
+python .\scripts\resolve_catalog.py list
+python .\scripts\resolve_catalog.py recipe collect-transcript
+python .\scripts\resolve_catalog.py resolve transcript
+python .\scripts\resolve_catalog.py clone-cmds transcript --dest .\deps
+```
+
+私有仓库需本机已 `gh auth login` / git 凭据。指定 `transcript` 时会按 `depends_on` 自动带上 `download` + `asr`。
 
 ## Backend (manual)
 

@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ke.local/schema/modules.catalog.schema.json",
+  "title": "KE Modules Catalog",
+  "type": "object",
+  "required": ["schema_version", "modules"],
+  "additionalProperties": true,
+  "properties": {
+    "schema_version": { "type": "string" },
+    "description": { "type": "string" },
+    "owner": { "type": "string" },
+    "default_layout": { "type": "object" },
+    "modules": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "service_id",
+          "folder",
+          "name",
+          "label",
+          "git_url",
+          "default_port",
+          "depends_on"
+        ],
+        "properties": {
+          "service_id": { "type": "string", "minLength": 1 },
+          "folder": { "type": "string" },
+          "name": { "type": "string" },
+          "label": { "type": "string" },
+          "category": { "type": "string" },
+          "git_url": { "type": "string" },
+          "visibility": { "type": "string", "enum": ["public", "private"] },
+          "default_port": { "type": "integer" },
+          "env_port": { "type": "string" },
+          "env_base_url": { "type": "string" },
+          "stack": { "type": "string", "enum": ["node", "python", "other"] },
+          "proxy_prefixes": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "depends_on": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "must_keep_highlights": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "notes": { "type": "string" }
+        }
+      }
+    },
+    "recipes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "modules"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "modules": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "description": { "type": "string" }
+        }
+      }
+    }
+  }
+}

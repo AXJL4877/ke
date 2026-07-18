@@ -4,13 +4,15 @@
 
 ## 1. 准备源模块
 
-源模块需符合根规范 / 本仓库 `MODULE_SPEC.md`：
+先查仓库根 **`modules.catalog.json`**（或 `python scripts/resolve_catalog.py`）：
 
-- 顶层 `capabilities[]`（含 `must_keep`）
-- `local`（端口、label、proxy、endpoint）
-- 可独立 `start_web` + `/ui` 验收
+- `service_id` / `git_url` / `folder` / `depends_on` / `proxy_prefixes`
+- `recipes`：如 `collect-transcript` = transcript + download + asr
 
-可从 GitHub clone 到 ke 同级目录，或任意路径；契约里写相对/绝对 `manifest_path`。
+源模块需符合 `MODULE_SPEC.md`：`capabilities[]`、`local`、可独立 `start_web` + `/ui`。
+
+建议布局：`ke/deps/<folder>` 或与 ke 同级；契约 `manifest_path` 指向源 `module.json`。  
+私有仓（catalog 里 `visibility: private`）需已登录 GitHub。
 
 ### 复制边界（强制）
 

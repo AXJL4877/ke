@@ -460,6 +460,12 @@ export { Result } from "./Result";
 
 ---
 
+## 10.1 模块目录 `modules.catalog.json`
+
+ke 根目录维护可接入本机模块清单（GitHub、默认端口、`depends_on`、配方）。接入前先按 `service_id` 查表；`python scripts/resolve_catalog.py resolve|recipe` 可展开依赖。目录不是运行时扫描源，**不替代** `capabilities[]` 与 §11 契约。
+
+---
+
 ## 11. 接入契约 `integration.contract.json`（ke 强制）
 
 > 当 ke handler 调用本机 HTTP 源模块时，必须在 `backend/modules/<id>/` 旁放置契约文件，把源 `must_keep` 能力**全量映射**到宿主接线。

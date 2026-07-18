@@ -9,6 +9,7 @@ alwaysApply: true
 
 ## 接到「接入某模块」任务时（必须按序）
 
+0. **先查**仓库根 `modules.catalog.json`（或 `python scripts/resolve_catalog.py resolve/recipe`）：取 `git_url`、`depends_on`、`proxy_prefixes`、配方展开。用户点名 `transcript` 须连带 `download`+`asr`。
 1. **先读**源模块 `module.json` 的全部 `capabilities[]` 与 `AGENTS.md`，不要只看 `local.endpoint`。
 2. **生成契约**：`backend/modules/<id>/integration.contract.json`，覆盖源模块每一个 `must_keep: true` 能力（可用 `python -m scripts.gen_contract`）。
 3. **再写** `handler.py`，只用 `core.local_service_bridge` 做发现/请求/轮询；**禁止**写死 `127.0.0.1:固定端口`。
