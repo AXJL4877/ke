@@ -84,11 +84,14 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   }
 
   if (!res.ok) {
-    let errBody: unknown;
+    // Read once: res.json() then res.text() in catch throws
+    // "Failed to execute 'text' on 'Response': body stream already read"
+    const raw = await res.text();
+    let errBody: unknown = raw;
     try {
-      errBody = await res.json();
+      errBody = raw ? JSON.parse(raw) : null;
     } catch {
-      errBody = await res.text();
+      /* keep raw string */
     }
     throw new ApiError(
       res.status,
@@ -98,7 +101,17 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   }
 
   if (res.status === 204) return undefined as T;
-  return (await res.json()) as T;
+  const raw = await res.text();
+  if (!raw) return undefined as T;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    throw new ApiError(
+      res.status,
+      `响应不是合法 JSON（${url}）：${raw.slice(0, 200)}`,
+      raw
+    );
+  }
 }
 
 export const apiClient = {
