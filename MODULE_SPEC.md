@@ -347,3 +347,99 @@ frontend/modules/<id>/index.ts  →  export { Form?, Result? }
 ### 9.6 第三方编辑器依赖
 
 若模块依赖 wangEditor 等：安装后需**重启前端**；补齐 CSS module 类型声明（如 `*.css`），避免 TS 报错阻塞接入。
+
+### 9.7 职责边界：外壳提供什么 / 模块只负责什么
+
+任务卡片的「外框」由外壳统一提供，**所有模块自动继承，禁止在模块内重造**。模块只负责表单输入与结果内容本身。
+
+**外壳已提供（模块不要碰）**
+
+| 能力 | 实现位置 | 说明 |
+|------|----------|------|
+| 任务卡片容器 / 标题 / 时间 | `components/task-queue-list/TaskCard.tsx` | 你的 `Result` 渲染在其 `CardContent` **内部** |
+| 删除按钮（含二次确认 + 退场动画） | `TaskCard.tsx` → `DELETE /api/tasks/{id}` | 模块**不要**自建删除按钮或删除接口 |
+| 任务列表：计数、清空已完成、折叠已完成/失败、进出场动画 | `TaskQueueList.tsx` → `DELETE /api/tasks` | 通用逻辑，与 `module_id` 无关 |
+| 进度条：状态配色 / 中文标签 / 处理中动画 | `components/progress-tracker/ProgressTracker.tsx` | 由任务 `status` 驱动，模块无需传进度 |
+| 错误信息展示 | `TaskCard.tsx` | 读 `task.error_message`，模块只需在 `handler` 抛错 |
+| 轮询刷新（5s） | `TaskQueueList.tsx` | 模块不用管刷新 |
+| 设计 token（颜色 / 圆角 / 阴影 / 间距） | `app/globals.css` + `tailwind.config.ts` | 见 §9.3，模块只能复用 |
+| 基础组件 | `components/ui/{button,card,progress,dialog,form}.tsx` | 自定义 UI 只能用这些，不得引第二套组件库 |
+
+**模块只负责**
+
+| 职责 | 缺省行为 | 自定义入口 |
+|------|----------|-----------|
+| 表单输入 | `DynamicForm`（按 `input_schema` 渲染） | `modules/<id>/index.ts` 导出 `Form`（§9.1 撑不住时才写） |
+| 结果内容 | `DefaultResult`（按 `output_schema` 渲染） | 同上导出 `Result`（见 §9.8） |
+| 后端处理 | — | `backend/modules/<id>/handler.py` 的 `run()`（§4） |
+
+> 一句话：**外壳负责「任务怎么被管理和展示」，模块只负责「输入长什么样、结果长什么样、后台怎么算」。**
+> 凡是删除 / 进度 / 列表 / 动画 / 刷新，都不是模块该写的东西。
+
+### 9.8 自定义 Result 的正确示例
+
+仅当 `DefaultResult` 撑不住（需要专属预览 / 多产物排版）时才写。约束：
+
+- **不要**再包一层 `Card`——外壳的 `TaskCard` 已经是卡片，你渲染在它内部。
+- **只用** `components/ui/*` 与设计 token（§9.3），禁止自带配色 / 圆角 / 阴影。
+- 结构遵守 §9.5：标题 + 次要 meta **一行**，下面一种主预览，操作用一排 `outline` + `sm`。
+- **不要**堆原始 JSON，**不要**自建删除 / 进度 / 时间（外壳已给）。
+- Props 固定为 `{ result, manifest }`（见 `_ui-registry.ts` 的 `ModuleResultProps`）。
+
+`frontend/modules/<id>/Result.tsx`：
+
+```tsx
+"use client";
+
+import { Button } from "@/components/ui/button";
+import type { ModuleResultProps } from "@/modules/_ui-registry";
+import { useState } from "react";
+
+export function Result({ result, manifest }: ModuleResultProps) {
+  const [copied, setCopied] = useState(false);
+
+  // result 的 key 对齐 module.json 的 output_schema
+  const html = String(result.html ?? "");
+  const wordCount = result.word_count as number | undefined;
+
+  async function copyHtml() {
+    await navigator.clipboard.writeText(html);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
+  return (
+    <div className="max-w-3xl space-y-3">
+      {/* 标题 + 次要 meta 一行（§9.5） */}
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <h3 className="text-base font-medium">{manifest.name} 结果</h3>
+        {wordCount != null && (
+          <span className="text-xs text-muted-foreground">{wordCount} 字</span>
+        )}
+      </div>
+
+      {/* 一种主预览，复用 token，不堆 JSON */}
+      <div
+        className="max-h-[420px] overflow-auto rounded-md border border-input bg-background p-3 text-sm"
+        dangerouslySetInnerHTML={{ __html: html }}
+      />
+
+      {/* 操作：一排 outline + sm，文案短 */}
+      <div className="flex flex-wrap gap-2">
+        <Button variant="outline" size="sm" onClick={copyHtml}>
+          {copied ? "已复制" : "复制 HTML"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+```
+
+`frontend/modules/<id>/index.ts`（自动发现，§9.2）：
+
+```ts
+export { Result } from "./Result";
+// 若还需自定义表单：export { Form } from "./Form";
+```
+
+> 文件产物（视频 / 图片 / 下载）可直接参考并复用 `components/dynamic-form/DefaultResult.tsx` 的主预览分支，通常**无需**自定义 Result。

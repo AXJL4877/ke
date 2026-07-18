@@ -80,3 +80,26 @@ def get_task_result(task_id: UUID, db: DbDep) -> dict:
         "result": task.result,
         "error_message": task.error_message,
     }
+
+
+@router.delete("", status_code=status.HTTP_200_OK)
+def clear_finished_tasks(
+    db: DbDep,
+    module_id: str | None = Query(default=None),
+) -> dict:
+    """批量清空已结束（done/failed）的任务，可按模块过滤。"""
+    q = db.query(Task).filter(Task.status.in_(["done", "failed"]))
+    if module_id:
+        q = q.filter(Task.module_id == module_id)
+    deleted = q.delete(synchronize_session=False)
+    db.commit()
+    return {"deleted": deleted}
+
+
+@router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_task(task_id: UUID, db: DbDep) -> None:
+    task = db.get(Task, task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    db.delete(task)
+    db.commit()

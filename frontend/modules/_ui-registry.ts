@@ -25,17 +25,32 @@ export type ModuleUI = {
   Result?: ComponentType<ModuleResultProps>;
 };
 
+const cache = new Map<string, Promise<ModuleUI | null>>();
+
 export async function loadModuleUI(id: string): Promise<ModuleUI | null> {
   if (!id || id.startsWith("_")) return null;
-  try {
-    // webpack context: 任意 modules/<id>/index — 新增模块只需丢 index.ts
-    const mod = (await import(
-      /* webpackMode: "lazy" */
-      `./${id}/index`
-    )) as ModuleUI;
-    if (!mod?.Form && !mod?.Result) return null;
-    return mod;
-  } catch {
-    return null;
-  }
+  const hit = cache.get(id);
+  if (hit) return hit;
+
+  const pending = (async (): Promise<ModuleUI | null> => {
+    try {
+      const mod = (await import(
+        /* webpackMode: "lazy" */
+        `./${id}/index`
+      )) as ModuleUI;
+      if (!mod?.Form && !mod?.Result) return null;
+      return mod;
+    } catch {
+      return null;
+    }
+  })();
+
+  cache.set(id, pending);
+  return pending;
+}
+
+/** 开发热加载后可清缓存 */
+export function clearModuleUICache(id?: string) {
+  if (id) cache.delete(id);
+  else cache.clear();
 }

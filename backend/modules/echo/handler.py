@@ -5,4 +5,8 @@ from typing import Any
 
 
 def run(params: dict[str, Any]) -> dict[str, Any]:
-    return {"echo": params.get("message", "")}
+    message = params.get("message", "")
+    # Demo hook for stage-error UI: message "__fail__" or fail=true
+    if params.get("fail") is True or str(message).strip() == "__fail__":
+        raise RuntimeError("演示失败：故意在 run 阶段抛出，用于验证节点明示报错")
+    return {"echo": message}

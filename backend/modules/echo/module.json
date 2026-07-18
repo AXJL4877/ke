@@ -1,7 +1,7 @@
 {
   "id": "echo",
   "name": "回声示例",
-  "description": "壳自带示例模块：原样返回参数，用于验证注册与任务链路",
+  "description": "壳自带示例模块：原样返回参数；消息填 __fail__ 可演示执行节点报错",
   "version": "1.0.0",
   "category": "system",
   "input_schema": {

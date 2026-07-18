@@ -8,15 +8,12 @@ import type { ModuleManifest } from "@/types/module";
 export function useModules() {
   return useQuery({
     queryKey: ["modules"],
+    staleTime: 30_000,
     queryFn: async () => {
-      try {
-        const remote = await apiClient.get<ModuleManifest[]>("/api/modules", {
-          auth: false,
-        });
-        return mergeModuleRegistry(remote);
-      } catch {
-        return mergeModuleRegistry([]);
-      }
+      const remote = await apiClient.get<ModuleManifest[]>("/api/modules", {
+        auth: false,
+      });
+      return mergeModuleRegistry(remote);
     },
   });
 }

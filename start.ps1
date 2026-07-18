@@ -1,9 +1,14 @@
-# KE Studio one-click start: backend :8000 + frontend :3000
+# KE Studio silent start: backend :8000 + frontend :3000 (no console windows)
 # Keep this file ASCII-only to avoid PowerShell encoding issues on Windows.
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Backend = Join-Path $Root "backend"
 $Frontend = Join-Path $Root "frontend"
+$Logs = Join-Path $Root "logs"
+New-Item -ItemType Directory -Force -Path $Logs | Out-Null
+$BackendLog = Join-Path $Logs "backend.log"
+$FrontendLog = Join-Path $Logs "frontend.log"
+$PidFile = Join-Path $Logs "pids.json"
 
 function Refresh-PathFromRegistry {
   $machine = [Environment]::GetEnvironmentVariable("Path", "Machine")
@@ -16,6 +21,26 @@ function Refresh-PathFromRegistry {
     "$env:LOCALAPPDATA\Programs\Python\Python311"
   )) {
     if (Test-Path $p) { $env:Path = "$p;$env:Path" }
+  }
+}
+
+function Show-LogTail {
+  param([string]$Path, [int]$Lines = 40)
+  if (Test-Path $Path) {
+    Write-Host "----- last lines of $Path -----"
+    Get-Content $Path -Tail $Lines -ErrorAction SilentlyContinue
+  }
+}
+
+function Test-PortListening {
+  param([int]$Port)
+  try {
+    $c = New-Object System.Net.Sockets.TcpClient
+    $c.Connect("127.0.0.1", $Port)
+    $c.Close()
+    return $true
+  } catch {
+    return $false
   }
 }
 
@@ -66,23 +91,32 @@ try {
   Pop-Location
 }
 
-Write-Host "[ke] starting backend http://127.0.0.1:8000 ..."
-$pyArgLit = if ($PythonArgs.Count) { ($PythonArgs | ForEach-Object { "'$_'" }) -join ", " } else { "" }
-$backendCmd = @"
+$pids = @{ backend = $null; frontend = $null }
+
+# --- Backend (silent) ---
+if (Test-PortListening 8000) {
+  Write-Host "[ke] backend already listening on :8000 (reuse)"
+} else {
+  Write-Host "[ke] starting backend silently -> $BackendLog"
+  "" | Set-Content -Path $BackendLog -Encoding UTF8
+  $pyArgLit = if ($PythonArgs.Count) { ($PythonArgs | ForEach-Object { "'$_'" }) -join ", " } else { "" }
+  $backendCmd = @"
+`$ErrorActionPreference = 'Continue'
 Set-Location '$Backend'
 `$env:PYTHONPATH = '.'
-Write-Host 'KE Backend  |  http://127.0.0.1:8000  |  Ctrl+C to stop'
 `$pyArgs = @($pyArgLit)
-& '$PythonExe' @pyArgs -m uvicorn api.main:app --reload --host 127.0.0.1 --port 8000
+& '$PythonExe' @pyArgs -m uvicorn api.main:app --reload --host 127.0.0.1 --port 8000 *>> '$BackendLog' 2>&1
 "@
-Start-Process powershell -ArgumentList @(
-  "-NoExit",
-  "-ExecutionPolicy", "Bypass",
-  "-Command", $backendCmd
-)
+  $be = Start-Process powershell -WindowStyle Hidden -PassThru -ArgumentList @(
+    "-NoProfile",
+    "-ExecutionPolicy", "Bypass",
+    "-Command", $backendCmd
+  )
+  $pids.backend = $be.Id
+}
 
 $ok = $false
-for ($i = 0; $i -lt 30; $i++) {
+for ($i = 0; $i -lt 40; $i++) {
   Start-Sleep -Seconds 1
   try {
     $r = Invoke-WebRequest -Uri "http://127.0.0.1:8000/health" -UseBasicParsing -TimeoutSec 1
@@ -90,29 +124,52 @@ for ($i = 0; $i -lt 30; $i++) {
   } catch { }
 }
 if (-not $ok) {
-  Write-Warning "[ke] backend health check timed out; starting frontend anyway. Check the Backend window."
+  Write-Warning "[ke] backend health check timed out. Log tail:"
+  Show-LogTail $BackendLog
+  throw "Backend failed to start. See $BackendLog"
+}
+Write-Host "[ke] backend ready"
+
+# --- Frontend (silent) ---
+if (Test-PortListening 3000) {
+  Write-Host "[ke] frontend already listening on :3000 (reuse)"
 } else {
-  Write-Host "[ke] backend ready"
+  Write-Host "[ke] starting frontend silently -> $FrontendLog"
+  "" | Set-Content -Path $FrontendLog -Encoding UTF8
+  $frontendCmd = @"
+`$ErrorActionPreference = 'Continue'
+Set-Location '$Frontend'
+npm run dev *>> '$FrontendLog' 2>&1
+"@
+  $fe = Start-Process powershell -WindowStyle Hidden -PassThru -ArgumentList @(
+    "-NoProfile",
+    "-ExecutionPolicy", "Bypass",
+    "-Command", $frontendCmd
+  )
+  $pids.frontend = $fe.Id
 }
 
-Write-Host "[ke] starting frontend http://localhost:3000 ..."
-$frontendCmd = @"
-Set-Location '$Frontend'
-Write-Host 'KE Frontend  |  http://localhost:3000  |  Ctrl+C to stop'
-npm run dev
-"@
-Start-Process powershell -ArgumentList @(
-  "-NoExit",
-  "-ExecutionPolicy", "Bypass",
-  "-Command", $frontendCmd
-)
+$feOk = $false
+for ($i = 0; $i -lt 50; $i++) {
+  Start-Sleep -Seconds 1
+  if (Test-PortListening 3000) { $feOk = $true; break }
+}
+if (-not $feOk) {
+  Write-Warning "[ke] frontend did not open :3000 in time. Log tail:"
+  Show-LogTail $FrontendLog
+  Write-Warning "[ke] opening browser anyway; check $FrontendLog if page fails."
+} else {
+  Write-Host "[ke] frontend ready"
+}
 
-Start-Sleep -Seconds 3
+($pids | ConvertTo-Json) | Set-Content -Path $PidFile -Encoding UTF8
+
 Start-Process "http://localhost:3000"
 
 Write-Host ""
-Write-Host "[ke] opened Backend + Frontend windows"
+Write-Host "[ke] started silently (no console windows)"
 Write-Host "     frontend: http://localhost:3000"
 Write-Host "     backend:  http://127.0.0.1:8000"
 Write-Host "     docs:     http://127.0.0.1:8000/docs"
-Write-Host "Close a window or press Ctrl+C to stop that process."
+Write-Host "     logs:     $Logs"
+Write-Host "     stop:     .\stop.bat"

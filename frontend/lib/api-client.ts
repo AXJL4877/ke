@@ -27,6 +27,34 @@ type RequestOptions = Omit<RequestInit, "body"> & {
   auth?: boolean;
 };
 
+function extractErrorMessage(errBody: unknown, fallback: string): string {
+  if (typeof errBody === "string" && errBody.trim()) return errBody;
+  if (typeof errBody !== "object" || !errBody) return fallback;
+  const o = errBody as Record<string, unknown>;
+  if ("detail" in o) {
+    const d = o.detail;
+    if (typeof d === "string") return d;
+    if (Array.isArray(d)) {
+      return d
+        .map((x) =>
+          typeof x === "object" && x && "msg" in x
+            ? String((x as { msg: unknown }).msg)
+            : JSON.stringify(x)
+        )
+        .join("; ");
+    }
+  }
+  if (
+    typeof o.error === "object" &&
+    o.error &&
+    "message" in (o.error as object)
+  ) {
+    return String((o.error as { message: unknown }).message);
+  }
+  if (typeof o.message === "string") return o.message;
+  return fallback;
+}
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { body, auth = true, headers: extra, ...rest } = options;
   const headers = new Headers(extra);
@@ -51,7 +79,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   } catch (err) {
     throw new ApiError(
       0,
-      `Network error calling ${url}. Is the backend running on :8000? (${(err as Error).message})`
+      `网络错误：无法连接 ${url}。请确认后端已启动（:8000）。（${(err as Error).message}）`
     );
   }
 
@@ -62,11 +90,11 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     } catch {
       errBody = await res.text();
     }
-    const msg =
-      typeof errBody === "object" && errBody && "detail" in errBody
-        ? String((errBody as { detail: unknown }).detail)
-        : res.statusText;
-    throw new ApiError(res.status, msg, errBody);
+    throw new ApiError(
+      res.status,
+      extractErrorMessage(errBody, res.statusText || `HTTP ${res.status}`),
+      errBody
+    );
   }
 
   if (res.status === 204) return undefined as T;
