@@ -91,7 +91,31 @@ try {
   Pop-Location
 }
 
-$pids = @{ backend = $null; frontend = $null }
+# --- Local HTTP backends from integration contracts (silent) ---
+$StartLocals = Join-Path $Root "scripts\Start-LocalServices.ps1"
+if (Test-Path $StartLocals) {
+  Write-Host "[ke] ensuring local module backends (silent)..."
+  try {
+    & $StartLocals -KeRoot $Root -WaitSeconds 90
+  } catch {
+    Write-Warning "[ke] local service start had errors: $($_.Exception.Message)"
+    Write-Warning "[ke] continuing shell start; check logs\locals\"
+  }
+} else {
+  Write-Host "[ke] scripts\Start-LocalServices.ps1 missing; skip local backends"
+}
+
+$pids = @{ backend = $null; frontend = $null; locals = @{} }
+if (Test-Path $PidFile) {
+  try {
+    $prev = Get-Content $PidFile -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($prev.locals) {
+      $prev.locals.PSObject.Properties | ForEach-Object {
+        $pids.locals[$_.Name] = $_.Value
+      }
+    }
+  } catch { }
+}
 
 # --- Backend (silent) ---
 if (Test-PortListening 8000) {
@@ -102,7 +126,7 @@ if (Test-PortListening 8000) {
   $pyArgLit = if ($PythonArgs.Count) { ($PythonArgs | ForEach-Object { "'$_'" }) -join ", " } else { "" }
   $backendCmd = @"
 `$ErrorActionPreference = 'Continue'
-Set-Location '$Backend'
+Set-Location -LiteralPath '$Backend'
 `$env:PYTHONPATH = '.'
 `$pyArgs = @($pyArgLit)
 & '$PythonExe' @pyArgs -m uvicorn api.main:app --reload --host 127.0.0.1 --port 8000 *>> '$BackendLog' 2>&1
@@ -162,7 +186,7 @@ if (-not $feOk) {
   Write-Host "[ke] frontend ready"
 }
 
-($pids | ConvertTo-Json) | Set-Content -Path $PidFile -Encoding UTF8
+($pids | ConvertTo-Json -Depth 5) | Set-Content -Path $PidFile -Encoding UTF8
 
 Start-Process "http://localhost:3000"
 
@@ -171,5 +195,7 @@ Write-Host "[ke] started silently (no console windows)"
 Write-Host "     frontend: http://localhost:3000"
 Write-Host "     backend:  http://127.0.0.1:8000"
 Write-Host "     docs:     http://127.0.0.1:8000/docs"
+Write-Host "     locals:   logs\locals\  (contract backends)"
 Write-Host "     logs:     $Logs"
 Write-Host "     stop:     .\stop.bat"
+Write-Host "     skip locals next time: `$env:KE_AUTO_START_LOCAL='0'"

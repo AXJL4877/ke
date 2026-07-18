@@ -33,8 +33,22 @@
 | `backend/core/local_service_bridge.py` | 服务发现 + HTTP/multipart/二进制/轮询 |
 | `backend/modules/_template/` | 可复制模板（下划线开头，不加载） |
 | `scripts/verify-integration.ps1` | 一键契约检查 |
+| `scripts/Start-LocalServices.ps1` | 按契约静默拉起本机 HTTP 后端（start.ps1 自动调用） |
 | `docs/INTEGRATION_GUIDE.md` | 人读详解 |
 | `.cursor/rules/module-integration.mdc` | Cursor 始终生效规则 |
+
+## 一键启动下游
+
+`.\start.ps1` / `start.bat` 会：
+
+1. 扫描已接入模块的 `integration.contract.json`（`source` + `depends_on`）
+2. 用 `manifest_path` / 同级 `mo_kuai/<folder>` 找到源目录
+3. 读源 `module.json` → `local.start`，**静默**启动（无黑窗；优先 `start_api` / `start.bat`，避免 `start_web` 弹浏览器）
+4. 探活 `/health.service === label`，写 `ports.json` 由源脚本自己完成
+5. 再启 ke 前后端
+
+单独补拉：`.\scripts\Start-LocalServices.ps1`  
+跳过：`$env:KE_AUTO_START_LOCAL='0'`
 
 ## 完成定义（DoD）
 

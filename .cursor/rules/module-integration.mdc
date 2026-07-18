@@ -22,6 +22,7 @@ alwaysApply: true
 - 默认 `cookiesFromBrowser=edge`（易 DPAPI/锁库）；默认留空，走源模块 cookies.txt 回退
 - 在 `tasks.py` / loader 里写 `module_id` if-else
 - 声称「接入完成」但契约缺 `manual_acceptance` 或 verify 未跑
+- 要求用户手动先开下游：契约写好 `source`/`depends_on` + `manifest_path` 后，由 `start.ps1` → `Start-LocalServices.ps1` 静默拉起
 
 ## 成功证据
 
