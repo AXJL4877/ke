@@ -139,13 +139,9 @@ export function TaskCard({
           />
           {showMockBanner ? (
             <div className="rounded-md border border-amber-500/40 bg-amber-500/15 px-3 py-2 text-sm text-amber-950">
-              <div className="font-semibold">非真实结果（演示 / mock）</div>
+              <div className="font-semibold">结果异常</div>
               <p className="mt-1 text-xs leading-relaxed">
-                {(shellMeta?.hints && shellMeta.hints[0]) ||
-                  "结果含演示信号，请勿当作真实下游产出。"}
-                {shellMeta?.duration_ms != null
-                  ? ` · ${shellMeta.duration_ms}ms`
-                  : ""}
+                看起来不是真实运行结果，请重新运行确认。
               </p>
             </div>
           ) : null}
@@ -153,11 +149,7 @@ export function TaskCard({
             <div className="rounded-md border border-orange-500/35 bg-orange-500/10 px-3 py-2 text-sm text-orange-950">
               <div className="font-semibold">完成过快</div>
               <p className="mt-1 text-xs leading-relaxed">
-                {(shellMeta?.hints && shellMeta.hints[0]) ||
-                  "可能未调用真实下游，请核对 job_id / 归档字段。"}
-                {shellMeta?.duration_ms != null
-                  ? ` · ${shellMeta.duration_ms}ms`
-                  : ""}
+                可能未真正跑通，请核对结果内容是否完整。
               </p>
             </div>
           ) : null}

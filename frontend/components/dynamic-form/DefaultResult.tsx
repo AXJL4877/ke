@@ -17,7 +17,17 @@ function isProbablyUrl(v: unknown): v is string {
 export function DefaultResult({ result, manifest }: Props) {
   const [copied, setCopied] = useState<string | null>(null);
 
-  const entries = useMemo(() => Object.entries(result || {}), [result]);
+  // Hide shell / integration bookkeeping from product UI
+  const displayResult = useMemo(() => {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(result || {})) {
+      if (k === "_ke" || k === "provenance" || k.startsWith("_")) continue;
+      out[k] = v;
+    }
+    return out;
+  }, [result]);
+
+  const entries = useMemo(() => Object.entries(displayResult), [displayResult]);
   const schema = manifest.output_schema || {};
 
   const primary = useMemo(() => {
@@ -114,7 +124,7 @@ export function DefaultResult({ result, manifest }: Props) {
 
       {!primary ? (
         <pre className="max-h-[240px] overflow-auto rounded-md border border-input p-3 text-xs text-muted-foreground">
-          {JSON.stringify(result, null, 2)}
+          {JSON.stringify(displayResult, null, 2)}
         </pre>
       ) : null}
     </div>

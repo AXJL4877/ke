@@ -31,7 +31,6 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
           {!collapsed && (
             <div className="leading-tight">
               <div className="text-sm font-semibold tracking-tight">KE Studio</div>
-              <div className="text-[10px] text-muted-foreground">模块底座</div>
             </div>
           )}
         </div>
@@ -47,7 +46,7 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
       {!collapsed && (
         <div className="mt-2 flex min-h-0 flex-1 flex-col border-t border-border/70 p-2">
           <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            已注册模块
+            模块
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto">
             <ModuleNav />

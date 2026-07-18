@@ -2,12 +2,7 @@
 
 import { TaskQueueList } from "@/components/task-queue-list/TaskQueueList";
 import { DynamicForm } from "@/components/dynamic-form/DynamicForm";
-import { IntegrationChecklist } from "@/components/IntegrationChecklist";
-import {
-  useModuleIntegration,
-  useModules,
-  useReloadModules,
-} from "@/hooks/useModules";
+import { useModules, useReloadModules } from "@/hooks/useModules";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -32,8 +27,6 @@ function TasksContent() {
   const moduleId = searchParams.get("module");
   const { data: modules, isLoading: modulesLoading } = useModules();
   const reload = useReloadModules();
-  const { data: integration, isLoading: integrationLoading } =
-    useModuleIntegration(moduleId);
   const queryClient = useQueryClient();
   const mod = modules?.find((m) => m.id === moduleId);
   const [ui, setUi] = useState<ModuleUI | null>(null);
@@ -96,32 +89,30 @@ function TasksContent() {
     <div className="mx-auto grid max-w-6xl gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
       <div className="space-y-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
-              任务
-            </p>
-            <h1 className="text-2xl font-semibold tracking-tight">提交与跟踪</h1>
+          <div className="space-y-1">
+            <h1 className="text-2xl font-semibold tracking-tight">任务</h1>
             <p className="text-sm text-muted-foreground">
-              默认禁止演示/mock；接入须按 capabilities 逐条验收 must_keep。
+              填写参数并运行，右侧查看结果。
             </p>
           </div>
           <Button
             type="button"
-            variant="outline"
+            variant="ghost"
             size="sm"
             disabled={reload.isPending}
             onClick={() => reload.mutate()}
+            className="text-muted-foreground"
           >
-            {reload.isPending ? "刷新中…" : "刷新模块"}
+            {reload.isPending ? "刷新中…" : "刷新"}
           </Button>
         </div>
 
         <section className="space-y-3">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            选择模块
+            模块
           </h2>
           {modulesLoading ? (
-            <p className="text-sm text-muted-foreground">加载模块…</p>
+            <p className="text-sm text-muted-foreground">加载中…</p>
           ) : (
             <div className="flex flex-wrap gap-2">
               {(modules ?? []).map((m) => (
@@ -141,7 +132,7 @@ function TasksContent() {
               ))}
               {(modules?.length ?? 0) === 0 && (
                 <span className="text-sm text-muted-foreground">
-                  暂无可用模块（echo 默认隐藏）。点「刷新模块」或检查 backend/modules/
+                  暂无可用模块
                 </span>
               )}
             </div>
@@ -158,11 +149,6 @@ function TasksContent() {
                 </p>
               ) : null}
             </div>
-
-            <IntegrationChecklist
-              report={integration}
-              loading={integrationLoading}
-            />
 
             {submitError ? (
               <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
@@ -181,7 +167,7 @@ function TasksContent() {
             ) : null}
             {submitOk ? (
               <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-800">
-                已提交，请在右侧队列查看进度。
+                已提交，请在右侧查看进度。
               </div>
             ) : null}
 
@@ -190,19 +176,19 @@ function TasksContent() {
                 schema={safeSchema}
                 manifest={mod}
                 onSubmit={submit}
-                submitLabel="运行模块"
+                submitLabel="运行"
               />
             ) : (
               <DynamicForm
                 schema={safeSchema}
                 onSubmit={submit}
-                submitLabel="运行模块"
+                submitLabel="运行"
               />
             )}
           </section>
         ) : (
           <div className="rounded-xl border border-dashed border-border/80 bg-muted/20 px-5 py-10 text-center text-sm text-muted-foreground">
-            请选择上方模块，或从侧栏 / 工作台进入。
+            请选择一个模块开始。
           </div>
         )}
       </div>
