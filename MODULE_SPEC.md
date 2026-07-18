@@ -326,9 +326,12 @@ frontend/modules/<id>/index.ts  →  export { Form?, Result? }
 | 容器（短表单） | `max-w-lg space-y-4` |
 | 容器（长文案 / textarea） | `max-w-3xl space-y-4` |
 | 控件 | `border-input bg-background rounded-md text-sm`（及壳统一的 h/px） |
-| 说明文案 | `text-xs text-muted-foreground`，放在 **label 下方** |
+| 说明文案 | **产品 UI 默认不展示** `input_schema.description`（DynamicForm / FormField 已隐藏）。接入说明写 capabilities / AGENTS，勿堆用户可见小字 |
 | 主提交 | 一个主按钮 |
 | 次要操作 | `variant="outline"` + `size="sm"` |
+
+> 禁止在表单上展示端口、代理路径（如 `/transcript-api`）、模型内部 id、「独立检验」等联调文案。见 `AGENTS.md`「产品 UI 文案」。
+
 
 ### 9.4 字段布局
 

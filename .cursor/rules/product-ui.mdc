@@ -1,0 +1,24 @@
+---
+description: 产品 UI 文案——禁止端口、API 路径、开发说明堆在表单小字里
+alwaysApply: true
+---
+
+# 产品 UI（面向普通用户）
+
+工作台是给**最终用户**用的，不是给联调/开发看的。
+
+## 禁止出现在表单 / 结果 UI 上
+
+- 端口号（`:8789`）、代理路径（`/transcript-api`、`/cookies/*`）
+- 「独立检验」「对应模块」「ports.json」「handler」「must_keep」
+- 模型内部 ID 当主文案（如 `deepseek-v4-flash-260425`）；下拉只显示人类可读名称
+- 「当前：xxx-id」「推荐·总结」这类开发旁注堆在选项旁
+- 大段 Cookie/联调说明默认展开；高级能力放折叠，文案口语化（如「登录后保存」），不写技术路径
+
+## 表单规则
+
+- `input_schema`：**label 口语化**；`description` 默认留空（壳层 DynamicForm **不展示** description）
+- 接入说明、Cookie、端口写在 `capabilities[]` / 模块 `AGENTS.md` / 契约，**不要**写进用户可见 schema
+- 自定义 `Form.tsx` 同样遵守；不要为「接得全」就在页面上堆联调提示
+
+细节见 `AGENTS.md`「产品 UI 文案」。

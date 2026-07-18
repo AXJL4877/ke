@@ -63,8 +63,8 @@ export default function HomePage() {
               <div className="font-medium tracking-tight group-hover:text-primary">
                 {m.name}
               </div>
-              {m.description ? (
-                <p className="mt-2 text-sm leading-relaxed text-muted-foreground line-clamp-3">
+              {m.description && m.description.length <= 48 ? (
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                   {m.description}
                 </p>
               ) : null}

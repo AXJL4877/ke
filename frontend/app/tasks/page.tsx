@@ -143,11 +143,6 @@ function TasksContent() {
           <section className="shell-card space-y-4 rounded-xl p-5">
             <div>
               <h2 className="text-lg font-medium tracking-tight">{mod.name}</h2>
-              {mod.description ? (
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {mod.description}
-                </p>
-              ) : null}
             </div>
 
             {submitError ? (

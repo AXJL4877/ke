@@ -27,12 +27,15 @@ export function FormField({
   error?: string;
   children: React.ReactNode;
 }) {
+  // Product UI: do not render schema description as muted helper text.
+  // Optional short hint may go on the label title attribute only.
+  const tip =
+    description && description.length > 0 && description.length <= 40
+      ? description
+      : undefined;
   return (
     <div className="space-y-1.5">
-      <Label>{label}</Label>
-      {description ? (
-        <p className="text-xs text-muted-foreground">{description}</p>
-      ) : null}
+      <Label title={tip}>{label}</Label>
       {children}
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>

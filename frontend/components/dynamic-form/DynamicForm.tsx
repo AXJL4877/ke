@@ -35,6 +35,20 @@ function hasTextarea(schema: Record<string, FieldSpec>) {
   );
 }
 
+/** Prefer human-readable enum labels; hide raw model/API ids when option is "Name · id". */
+function humanOptionLabel(opt: string | number | boolean): string {
+  const s = String(opt);
+  const sep = s.indexOf(" · ");
+  if (sep > 0 && sep < s.length - 3) {
+    return s.slice(0, sep).trim();
+  }
+  // bare technical ids look like deepseek-v4-flash-260425
+  if (/^[a-z0-9]+(?:-[a-z0-9]+)+$/i.test(s) && s.length > 24) {
+    return s.split("-").slice(0, 3).join("-");
+  }
+  return s;
+}
+
 /** Auto-render form from MODULE_SPEC.md §3 / §9 */
 export function DynamicForm({ schema, onSubmit, submitLabel = "Submit" }: Props) {
   const safeSchema = stripMockFieldsFromSchema(schema);
@@ -55,7 +69,8 @@ export function DynamicForm({ schema, onSubmit, submitLabel = "Submit" }: Props)
     const label = def.label || key;
     const err = errors[key]?.message as string | undefined;
     const required = Boolean(def.required);
-    const desc = def.description;
+    // Do not pass description: product UI must not show schema helper clutter
+    const desc = undefined;
 
     if (def.type === "enum" && def.options?.length) {
       return (
@@ -66,7 +81,7 @@ export function DynamicForm({ schema, onSubmit, submitLabel = "Submit" }: Props)
           >
             {def.options.map((opt) => (
               <option key={String(opt)} value={String(opt)}>
-                {String(opt)}
+                {humanOptionLabel(opt)}
               </option>
             ))}
           </select>
