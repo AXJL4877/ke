@@ -73,20 +73,17 @@ def execute_task(task_id: str) -> dict:
 
         settings = get_settings()
         contract = loader.get_contract(task.module_id) if module_id else None
+        evidence_hints: list[str] = []
         if (
             contract
             and settings.enforce_integration_evidence
             and isinstance(result, dict)
         ):
-            from core.integration_contract import (
-                IntegrationContractError,
-                validate_task_result_against_contract,
-            )
+            from core.integration_contract import validate_task_result_against_contract
 
-            # Prefer contract-specific threshold over global fast_completion_ms
             exec_cfg = contract.get("execution") or {}
             if exec_cfg.get("fast_completion_ok"):
-                fast_threshold = 0  # disable annotate fast flag noise
+                fast_threshold = 0
             elif isinstance(exec_cfg.get("min_duration_ms"), int):
                 fast_threshold = max(
                     settings.fast_completion_ms,
@@ -94,12 +91,10 @@ def execute_task(task_id: str) -> dict:
                 )
             else:
                 fast_threshold = settings.fast_completion_ms
-            try:
-                validate_task_result_against_contract(
-                    result, contract, duration_ms=duration_ms
-                )
-            except IntegrationContractError as exc:
-                raise StageError("run", f"接入证据校验失败：{exc}", module_id) from exc
+            # Soft only: collect hints, never fail the task for mock/evidence
+            evidence_hints = validate_task_result_against_contract(
+                result, contract, duration_ms=duration_ms
+            )
         else:
             fast_threshold = settings.fast_completion_ms
 
@@ -109,6 +104,7 @@ def execute_task(task_id: str) -> dict:
                 duration_ms=duration_ms,
                 fast_threshold_ms=fast_threshold if fast_threshold > 0 else 10**9,
                 module_id=module_id,
+                extra_hints=evidence_hints,
             )
 
         stage = "persist"

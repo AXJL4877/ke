@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     fast_completion_ms: int = 3000
     # When integration.contract.json present: require source module.json on disk
     require_integration_source: bool = True
-    # When contract present: missing provenance / mock → task failed (not done)
+    # When contract present: soft evidence hints into `_ke` (never fail task for mock)
     enforce_integration_evidence: bool = True
 
     @property

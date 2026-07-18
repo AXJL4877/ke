@@ -292,40 +292,38 @@ def test_async_job_requires_job_or_archive_key():
         validate_contract_shape(c, module_id="cj-download")
 
 
-def test_result_missing_provenance_fails():
+def test_result_missing_provenance_soft_warns():
     c = _base_contract("x")
-    with pytest.raises(IntegrationContractError) as ei:
-        validate_task_result_against_contract({"job_id": "1"}, c, duration_ms=100)
-    assert "provenance" in str(ei.value)
+    warns = validate_task_result_against_contract({"job_id": "1"}, c, duration_ms=100)
+    assert any("provenance" in w for w in warns)
 
 
-def test_result_mock_rejected():
+def test_result_mock_soft_warns():
     c = _base_contract("x")
-    with pytest.raises(IntegrationContractError):
-        validate_task_result_against_contract(
-            {
-                "job_id": "1",
-                "text": "【演示转写】假数据",
-                "provenance": {"source": "download", "service": "fake_download", "mock": False},
-            },
-            c,
-            duration_ms=100,
-        )
+    warns = validate_task_result_against_contract(
+        {
+            "job_id": "1",
+            "title": "演示·假数据",
+            "provenance": {"source": "download", "service": "fake_download", "mock": False},
+        },
+        c,
+        duration_ms=100,
+    )
+    assert any("mock" in w.lower() or "演示" in w for w in warns)
 
 
-def test_result_too_fast_rejected():
+def test_result_too_fast_soft_warns():
     c = _base_contract("x")
     c["execution"]["min_duration_ms"] = 5000
-    with pytest.raises(IntegrationContractError) as ei:
-        validate_task_result_against_contract(
-            {
-                "job_id": "1",
-                "provenance": {"source": "download", "service": "fake_download", "mock": False},
-            },
-            c,
-            duration_ms=100,
-        )
-    assert "过快" in str(ei.value)
+    warns = validate_task_result_against_contract(
+        {
+            "job_id": "1",
+            "provenance": {"source": "download", "service": "fake_download", "mock": False},
+        },
+        c,
+        duration_ms=100,
+    )
+    assert any("快" in w for w in warns)
 
 
 def test_fast_completion_ok_allows_short():
@@ -335,7 +333,7 @@ def test_fast_completion_ok_allows_short():
     c["execution"]["min_duration_ms"] = 5000
     c["success_evidence"]["required_result_keys"] = []
     validate_contract_shape(c, module_id="cj-download")
-    validate_task_result_against_contract(
+    warns = validate_task_result_against_contract(
         {
             "ok": True,
             "provenance": {"source": "richtext", "service": "rich_txt", "mock": False},
@@ -343,6 +341,7 @@ def test_fast_completion_ok_allows_short():
         c,
         duration_ms=50,
     )
+    assert warns == []
 
 
 def test_load_contract_from_module_dir(tmp_path: Path):

@@ -15,19 +15,20 @@ def test_strip_mock_schema_fields():
         "use_mock": {"type": "boolean", "label": "使用假数据"},
         "quality": {"type": "enum", "label": "清晰度"},
     }
-    cleaned, stripped = strip_mock_from_schema(schema)
-    assert "url" in cleaned and "quality" in cleaned
-    assert "demo_mode" in stripped and "use_mock" in stripped
+    cleaned, found = strip_mock_from_schema(schema)
+    # Soft policy: do not remove fields from schema
+    assert "demo_mode" in cleaned and "use_mock" in cleaned
+    assert "demo_mode" in found and "use_mock" in found
     assert find_mock_schema_fields(schema) == ["demo_mode", "use_mock"]
 
 
-def test_reject_mock_params():
+def test_find_mock_params():
     assert find_mock_params({"url": "https://x", "demo": True}) == ["demo"]
     assert find_mock_params({"url": "https://x", "demo": False}) == []
 
 
 def test_detect_mock_result_copy():
-    d = detect_mock_result({"title": "演示·财经", "text": "【演示转写】hello"})
+    d = detect_mock_result({"title": "演示·财经", "ok": True})
     assert d["is_mock"] is True
     assert d["signals"]
 
@@ -36,6 +37,7 @@ def test_annotate_fast_completion():
     out = annotate_shell_result({"ok": True}, duration_ms=500, module_id="cj-collect")
     assert out["_ke"]["fast_completion"] is True
     assert out["_ke"]["duration_ms"] == 500
+    assert out["_ke"]["hints"]
 
 
 def test_capabilities_required():

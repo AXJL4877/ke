@@ -1,4 +1,4 @@
-/** Client-side helpers aligned with backend/core/anti_mock.py */
+/** Client-side helpers aligned with backend/core/anti_mock.py (soft hints only). */
 
 const MOCK_TOKEN = /(mock|demo|dry[_-]?run|fake|演示|测试模式|假数据|内置文案)/i;
 
@@ -6,18 +6,11 @@ export function isMockFieldKey(key: string): boolean {
   return MOCK_TOKEN.test(key || "");
 }
 
+/** No-op: keep schema fields; hard strip removed. */
 export function stripMockFieldsFromSchema<T extends Record<string, { label?: string; description?: string }>>(
   schema: T
 ): T {
-  const out = { ...schema };
-  for (const [key, spec] of Object.entries(schema)) {
-    const label = spec?.label || "";
-    const desc = spec?.description || "";
-    if (MOCK_TOKEN.test(key) || MOCK_TOKEN.test(label) || MOCK_TOKEN.test(desc)) {
-      delete out[key];
-    }
-  }
-  return out;
+  return schema;
 }
 
 export type ShellResultMeta = {

@@ -493,7 +493,7 @@ ke 根目录维护可接入本机模块清单（GitHub、默认端口、`depends
 ### 11.3 加载与运行门禁
 
 1. **加载**：存在契约 → 形状校验 +（默认）源 manifest 可读 + must_keep 全覆盖；失败则模块不注册
-2. **运行**：`KE_ENFORCE_INTEGRATION_EVIDENCE=true`（默认）→ 缺 provenance / 含 mock 文案 / 异步缺 job 证据 / 违反 `min_duration_ms` → **任务 failed**，不得 done
+2. **运行（软提示）**：结果像 mock / 缺 provenance / 过快 → 写入 `_ke.hints` 与任务卡黄/橙标；**不因此拒绝提交或把任务标 failed**
 3. **发现**：`env → ports.json → defaultPort 顺延`，校验 `health.service === label`；**禁止**写死端口
 
 ### 11.4 接入完成定义（DoD）

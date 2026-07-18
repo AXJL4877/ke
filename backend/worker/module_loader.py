@@ -19,7 +19,7 @@ BACKEND_ROOT = Path(__file__).resolve().parents[1]
 if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
-from core.anti_mock import find_mock_schema_fields, strip_mock_from_schema  # noqa: E402
+from core.anti_mock import find_mock_schema_fields  # noqa: E402
 from core.capabilities import CapabilitiesError, validate_capabilities  # noqa: E402
 from core.integration_contract import (  # noqa: E402
     CONTRACT_FILENAME,
@@ -192,15 +192,10 @@ class ModuleLoader:
 
         mock_fields = find_mock_schema_fields(manifest.get("input_schema"))
         if mock_fields:
-            msg = (
-                f"input_schema 含演示/mock 字段 {mock_fields}；"
-                + (
-                    "KE_ALLOW_MOCK=1，保留字段"
-                    if allow_mock
-                    else "壳将剥离且拒绝以此提交（未要求勿加测试模式）"
-                )
+            warnings.append(
+                f"input_schema 含演示/mock 相关字段 {mock_fields}；"
+                "仅作提示，不拦截提交（结果仍可能标黄）"
             )
-            warnings.append(msg)
 
         return warnings
 
@@ -248,22 +243,20 @@ class ModuleLoader:
         return out
 
     def prepare_manifest(self, manifest: dict[str, Any], *, for_api: bool = True) -> dict[str, Any]:
-        """Copy manifest; when for_api and not allow_mock, strip mock fields from input_schema."""
+        """Copy manifest; soft-warn on mock-like fields (do not strip)."""
         from api.config import get_settings
 
         m = copy.deepcopy(manifest)
         warnings = list(self._load_warnings.get(str(m.get("id")), []))
         settings = get_settings()
-        stripped: list[str] = []
-        if for_api and not settings.allow_mock:
-            cleaned, stripped = strip_mock_from_schema(m.get("input_schema"))
-            m["input_schema"] = cleaned
-            if stripped:
-                warnings.append(f"已剥离演示/mock 字段: {stripped}")
+        mock_fields = find_mock_schema_fields(m.get("input_schema"))
+        if mock_fields and for_api:
+            warnings.append(f"提示：input_schema 含演示/mock 相关字段 {mock_fields}")
         mid = str(m.get("id") or "")
         m["_shell"] = {
             "warnings": warnings,
-            "stripped_mock_fields": stripped,
+            "stripped_mock_fields": [],
+            "mock_field_hints": mock_fields,
             "allow_mock": settings.allow_mock,
             "capabilities_ok": bool(m.get("capabilities")),
             "has_integration_contract": mid in self._contracts,

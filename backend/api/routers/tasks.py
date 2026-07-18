@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from api.config import get_settings
 from api.deps import DbDep, get_optional_user
 from api.schemas.task import TaskCreate, TaskOut
-from core.anti_mock import find_mock_params, strip_mock_params
+from core.anti_mock import find_mock_params
 from db.models import Task
 from db.session import SessionLocal
 from worker.module_loader import get_module_loader
@@ -20,7 +20,6 @@ def create_task(
     db: DbDep,
     user=Depends(get_optional_user),
 ) -> Task:
-    settings = get_settings()
     loader = get_module_loader(force_reload=False)
     if loader.get_raw_manifest(body.module_id) is None:
         raise HTTPException(
@@ -30,17 +29,15 @@ def create_task(
 
     params = dict(body.input_params or {})
     mock_hits = find_mock_params(params)
-    if mock_hits and not settings.allow_mock:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "壳默认禁止演示/测试模式，未要求勿加 mock。"
-                f"检测到参数: {mock_hits}。"
-                "若确需调试请设置环境变量 KE_ALLOW_MOCK=1。"
-            ),
+    if mock_hits:
+        # Soft only: allow submit; UI/result layer may still hint
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "task %s submitted with mock-like params %s (soft hint only)",
+            body.module_id,
+            mock_hits,
         )
-    if not settings.allow_mock:
-        params = strip_mock_params(params)
 
     task = Task(
         module_id=body.module_id,

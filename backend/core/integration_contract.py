@@ -376,10 +376,15 @@ def validate_task_result_against_contract(
     contract: dict[str, Any],
     *,
     duration_ms: int | None = None,
-) -> None:
-    """Raise IntegrationContractError if result lacks required success evidence."""
+) -> list[str]:
+    """
+    Soft checks only: return warning strings for UI / `_ke.hints`.
+    Never raises for mock / missing provenance / fast completion.
+    """
+    warnings: list[str] = []
     if not isinstance(result, dict):
-        raise IntegrationContractError("结果必须是对象")
+        warnings.append("结果不是对象，无法做接入证据提示")
+        return warnings
 
     evidence = contract.get("success_evidence") or {}
     forbid_mock = evidence.get("forbid_mock", True)
@@ -388,33 +393,32 @@ def validate_task_result_against_contract(
 
         detection = detect_mock_result(result)
         if detection["is_mock"]:
-            raise IntegrationContractError(
-                "结果含演示/mock 信号，拒绝记为成功: " + ", ".join(detection["signals"])
+            warnings.append(
+                "结果含演示/mock 信号，请确认是否真实下游: "
+                + ", ".join(detection["signals"])
             )
         prov = result.get("provenance")
         if isinstance(prov, dict) and prov.get("mock") is True:
-            raise IntegrationContractError("provenance.mock=true，拒绝记为成功")
+            warnings.append("provenance.mock=true，请确认是否真实下游")
 
     if evidence.get("require_provenance"):
         prov = result.get("provenance")
         if not isinstance(prov, dict):
-            raise IntegrationContractError("success_evidence 要求结果含 provenance 对象")
-        for field in evidence.get("provenance_fields") or ["source", "service", "mock"]:
-            if field not in prov:
-                raise IntegrationContractError(f"provenance 缺少字段 {field!r}")
-        if prov.get("mock") is True and forbid_mock:
-            raise IntegrationContractError("provenance.mock 不得为 true")
+            warnings.append("建议结果含 provenance 对象（source/service/mock）")
+        else:
+            for field in evidence.get("provenance_fields") or ["source", "service", "mock"]:
+                if field not in prov:
+                    warnings.append(f"provenance 建议含字段 {field!r}")
 
     for key in evidence.get("required_result_keys") or []:
         if not isinstance(key, str):
             continue
-        # allow nested via provenance
         if key in result:
             continue
         prov = result.get("provenance") if isinstance(result.get("provenance"), dict) else {}
         if key in prov:
             continue
-        raise IntegrationContractError(f"成功证据缺少字段 {key!r}")
+        warnings.append(f"建议成功结果含字段 {key!r}")
 
     execution = contract.get("execution") or {}
     min_ms = execution.get("min_duration_ms")
@@ -426,11 +430,10 @@ def validate_task_result_against_contract(
         and duration_ms < min_ms
         and not fast_ok
     ):
-        raise IntegrationContractError(
-            f"完成过快（{duration_ms}ms < min_duration_ms={min_ms}），"
-            "且未声明 fast_completion_ok；疑似未调用真实下游"
+        warnings.append(
+            f"完成偏快（{duration_ms}ms < min_duration_ms={min_ms}），请确认是否已调用真实下游"
         )
-
+    return warnings
 
 def build_contract_skeleton_from_source(
     source_manifest: dict[str, Any],

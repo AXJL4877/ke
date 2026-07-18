@@ -128,10 +128,9 @@ python -m pytest tests/test_integration_gate.py -q
 
 | 约定 | 行为 |
 |------|------|
-| 默认禁 mock | 表单字段名/标签含 mock、demo、演示、测试模式等 → API 剥离；提交带这些参数 → 400 |
-| 假成功告警 | 结果含演示文案 / `is_mock` → 任务卡黄标；过快完成（默认 &lt;3s）→ 橙标提示 |
+| 假数据提示 | 结果像演示文案 / 过快完成 → 任务卡黄标/橙标提示；**不拒绝提交、不因此失败** |
 | 强制 capabilities | 业务模块缺 `capabilities[]` → **拒绝加载**；`echo` 默认豁免（`KE_CAPABILITIES_EXEMPT`） |
 | 接入清单 | `GET /api/modules/{id}/integration` + 任务页展示 must_keep 项 |
-| 接入契约 | 有 `integration.contract.json` → must_keep 映射 + 结果证据门禁（§11） |
+| 接入契约 | 有 `integration.contract.json` → must_keep 映射校验；结果证据仅写入 `_ke.hints` 提示 |
 
 环境变量（前缀 `KE_`）：`ALLOW_MOCK`、`REQUIRE_CAPABILITIES`、`CAPABILITIES_EXEMPT`、`FAST_COMPLETION_MS`、`REQUIRE_INTEGRATION_SOURCE`、`ENFORCE_INTEGRATION_EVIDENCE`。
