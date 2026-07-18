@@ -1,26 +1,41 @@
 "use client";
 
 import Link from "next/link";
-import { useModules } from "@/hooks/useModules";
+import { useModules, useReloadModules } from "@/hooks/useModules";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 export default function HomePage() {
   const { data: modules, isLoading, error, isError } = useModules();
+  const reload = useReloadModules();
 
   return (
     <div className="mx-auto max-w-6xl space-y-8">
-      <div className="space-y-2">
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
-          KE Studio · 模块底座
-        </p>
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-          工作台
-        </h1>
-        <p className="max-w-2xl text-sm text-muted-foreground">
-          从已注册模块发起任务。新模块放入{" "}
-          <code className="rounded bg-muted px-1 py-0.5 text-xs">modules/</code>{" "}
-          后自动出现，表单与结果走统一壳层 UI。
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
+            KE Studio · 开发基座
+          </p>
+          <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+            工作台
+          </h1>
+          <p className="max-w-2xl text-sm text-muted-foreground">
+            按需接入{" "}
+            <code className="rounded bg-muted px-1 py-0.5 text-xs">
+              backend/modules/
+            </code>{" "}
+            中的模块。壳默认禁止演示/mock，并以 capabilities 强制登记必要能力。
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={reload.isPending}
+          onClick={() => reload.mutate()}
+        >
+          {reload.isPending ? "刷新中…" : "刷新模块"}
+        </Button>
       </div>
 
       {isLoading && (
@@ -29,6 +44,9 @@ export default function HomePage() {
       {isError && (
         <p className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
           无法加载模块列表：{(error as Error).message}
+          <span className="mt-1 block text-xs">
+            确认后端 http://127.0.0.1:8000 已启动，或点击「刷新模块」。
+          </span>
         </p>
       )}
 
@@ -58,10 +76,18 @@ export default function HomePage() {
               </div>
               <div className="mt-1 font-mono text-[11px] text-muted-foreground">
                 {m.id}
+                {m.capabilities?.length
+                  ? ` · ${m.capabilities.filter((c) => c.must_keep).length} must_keep`
+                  : " · 缺 capabilities"}
               </div>
               {m.description ? (
                 <p className="mt-3 text-sm leading-relaxed text-muted-foreground line-clamp-3">
                   {m.description}
+                </p>
+              ) : null}
+              {(m.shell?.warnings?.length ?? 0) > 0 ? (
+                <p className="mt-2 text-[11px] text-amber-700 line-clamp-2">
+                  {m.shell!.warnings![0]}
                 </p>
               ) : null}
               <div className="mt-4 text-xs font-medium text-primary opacity-0 transition group-hover:opacity-100">
@@ -74,11 +100,11 @@ export default function HomePage() {
 
       {!isLoading && !isError && (modules?.length ?? 0) === 0 && (
         <div className="rounded-xl border border-dashed border-border/80 bg-muted/20 px-6 py-12 text-center text-sm text-muted-foreground">
-          暂无模块。请在{" "}
+          暂无业务模块（示例 echo 默认隐藏）。请在{" "}
           <code className="rounded bg-muted px-1 py-0.5 text-xs">
             backend/modules/
           </code>{" "}
-          按 MODULE_SPEC.md 添加 module.json + handler.py。
+          添加带 capabilities[] 的 module.json + handler.py，再点「刷新模块」。
         </div>
       )}
     </div>

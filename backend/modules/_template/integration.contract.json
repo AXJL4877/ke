@@ -1,0 +1,86 @@
+{
+  "schema_version": "1.0.0",
+  "module_id": "REPLACE_WITH_KE_MODULE_ID",
+  "source": {
+    "service_id": "download",
+    "label": "video_download",
+    "manifest_path": "../video_download/module.json",
+    "version": "1.0.0",
+    "default_port": 8789,
+    "max_tries": 8,
+    "env_base_url": "DOWNLOAD_BASE_URL",
+    "proxy_prefixes": ["/download-api", "/download-health"]
+  },
+  "depends_on": [],
+  "capability_wiring": [
+    {
+      "capability_id": "download-core",
+      "wiring": "handler",
+      "notes": "POST /download 由 handler 调用",
+      "proxy_paths": ["/download"],
+      "params_passthrough": ["url", "quality", "cookiesFromBrowser", "proxy"]
+    },
+    {
+      "capability_id": "job-progress",
+      "wiring": "handler",
+      "notes": "handler 内 poll_job；UI 可通过代理暴露进度",
+      "proxy_paths": ["/jobs", "/jobs/:id"]
+    },
+    {
+      "capability_id": "cookie-auto-resolve",
+      "wiring": "preserved_internal",
+      "notes": "源服务内部回退 cookies/<site>.txt；宿主勿默认强塞 cookiesFromBrowser=edge"
+    },
+    {
+      "capability_id": "cookie-one-click-import",
+      "wiring": "proxy",
+      "notes": "必须代理 /cookies/* 并在 Form/面板暴露入口",
+      "proxy_paths": [
+        "/cookies/sites",
+        "/cookies/login",
+        "/cookies/save",
+        "/cookies/close",
+        "/cookies/list",
+        "/cookies/file"
+      ]
+    },
+    {
+      "capability_id": "risk-control-headers",
+      "wiring": "preserved_internal",
+      "notes": "源服务自动 UA/Referer；宿主勿覆盖为空"
+    },
+    {
+      "capability_id": "health-probe",
+      "wiring": "handler",
+      "notes": "discover 时校验 /health.service",
+      "proxy_paths": ["/health"]
+    }
+  ],
+  "params_map": {},
+  "execution": {
+    "mode": "async_job",
+    "timeout_seconds": 1800,
+    "poll_interval_ms": 2000,
+    "job_path_template": "/jobs/{job_id}",
+    "min_duration_ms": 3000,
+    "fast_completion_ok": false
+  },
+  "success_evidence": {
+    "require_provenance": true,
+    "required_result_keys": ["job_id"],
+    "provenance_fields": ["source", "service", "mock"],
+    "forbid_mock": true
+  },
+  "manual_acceptance": [
+    {
+      "capability_id": "cookie-auto-resolve",
+      "accepted": false,
+      "note": "接入完成后改为 true，并写明验收步骤与日期"
+    },
+    {
+      "capability_id": "risk-control-headers",
+      "accepted": false,
+      "note": "接入完成后改为 true，并写明验收步骤与日期"
+    }
+  ]
+}

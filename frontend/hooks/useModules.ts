@@ -1,9 +1,9 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { mergeModuleRegistry } from "@/modules/_registry";
-import type { ModuleManifest } from "@/types/module";
+import type { IntegrationReport, ModuleManifest } from "@/types/module";
 
 export function useModules() {
   return useQuery({
@@ -14,6 +14,38 @@ export function useModules() {
         auth: false,
       });
       return mergeModuleRegistry(remote);
+    },
+  });
+}
+
+export function useReloadModules() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const remote = await apiClient.post<ModuleManifest[]>(
+        "/api/modules/reload",
+        {},
+        { auth: false }
+      );
+      return mergeModuleRegistry(remote);
+    },
+    onSuccess: (data) => {
+      qc.setQueryData(["modules"], data);
+      void qc.invalidateQueries({ queryKey: ["module-integration"] });
+    },
+  });
+}
+
+export function useModuleIntegration(moduleId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["module-integration", moduleId],
+    enabled: Boolean(moduleId),
+    staleTime: 15_000,
+    queryFn: async () => {
+      return apiClient.get<IntegrationReport>(
+        `/api/modules/${encodeURIComponent(moduleId!)}/integration`,
+        { auth: false }
+      );
     },
   });
 }

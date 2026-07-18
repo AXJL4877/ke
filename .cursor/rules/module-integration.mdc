@@ -1,0 +1,30 @@
+---
+description: 接入 mo_kuai HTTP 模块到 ke 时的强制流程——禁止只接主 endpoint、禁止假成功
+alwaysApply: true
+---
+
+# ke 模块接入强制规则
+
+本仓库是 **ke 产品壳**。业务能力来自独立 HTTP 模块（`module.json` + `capabilities[]`），不是在 handler 里重写一遍。
+
+## 接到「接入某模块」任务时（必须按序）
+
+1. **先读**源模块 `module.json` 的全部 `capabilities[]` 与 `AGENTS.md`，不要只看 `local.endpoint`。
+2. **生成契约**：`backend/modules/<id>/integration.contract.json`，覆盖源模块每一个 `must_keep: true` 能力（可用 `python -m scripts.gen_contract`）。
+3. **再写** `handler.py`，只用 `core.local_service_bridge` 做发现/请求/轮询；**禁止**写死 `127.0.0.1:固定端口`。
+4. **代理** `capabilities[].endpoints` 与契约里 `wiring=proxy` 的路径（如 `/cookies/*`），不得只代理主路径。
+5. **完成前**运行：`.\scripts\verify-integration.ps1`（有契约模块）+ 相关 pytest；`must_keep` 漏映射必须失败。
+
+## 禁止
+
+- 只接 `POST /run` / `local.endpoint`，漏掉 cookie、upload、jobs、voices 等 aux
+- 返回「演示·」「【演示转写】」或任意 mock 假成功
+- 默认 `cookiesFromBrowser=edge`（易 DPAPI/锁库）；默认留空，走源模块 cookies.txt 回退
+- 在 `tasks.py` / loader 里写 `module_id` if-else
+- 声称「接入完成」但契约缺 `manual_acceptance` 或 verify 未跑
+
+## 成功证据
+
+有 `integration.contract.json` 的模块：结果必须含 `provenance: {source, service, mock:false}`；异步须有 `job_id`/`archive_id`。缺证据 → 任务失败，不是 done。
+
+详情见 `AGENTS.md`、`docs/INTEGRATION_GUIDE.md`、`schema/integration.contract.schema.json`。

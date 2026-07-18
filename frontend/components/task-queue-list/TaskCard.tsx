@@ -6,6 +6,7 @@ import { ProgressTracker } from "@/components/progress-tracker/ProgressTracker";
 import { DefaultResult } from "@/components/dynamic-form/DefaultResult";
 import { loadModuleUI, type ModuleUI } from "@/modules/_ui-registry";
 import { apiClient } from "@/lib/api-client";
+import { readShellMeta } from "@/lib/anti-mock";
 import { parseStageError } from "@/lib/stage-error";
 import { cn } from "@/lib/utils";
 import type { ModuleManifest } from "@/types/module";
@@ -72,6 +73,9 @@ export function TaskCard({
 
   const Result = ui?.Result;
   const showResult = task.status === "done" && task.result && manifest;
+  const shellMeta = readShellMeta(task.result);
+  const showMockBanner = Boolean(shellMeta?.mock);
+  const showFastBanner = Boolean(shellMeta?.fast_completion) && !showMockBanner;
 
   return (
     <li
@@ -133,6 +137,30 @@ export function TaskCard({
             status={task.status}
             failedStage={task.status === "failed" ? parsed.stage : null}
           />
+          {showMockBanner ? (
+            <div className="rounded-md border border-amber-500/40 bg-amber-500/15 px-3 py-2 text-sm text-amber-950">
+              <div className="font-semibold">非真实结果（演示 / mock）</div>
+              <p className="mt-1 text-xs leading-relaxed">
+                {(shellMeta?.hints && shellMeta.hints[0]) ||
+                  "结果含演示信号，请勿当作真实下游产出。"}
+                {shellMeta?.duration_ms != null
+                  ? ` · ${shellMeta.duration_ms}ms`
+                  : ""}
+              </p>
+            </div>
+          ) : null}
+          {showFastBanner ? (
+            <div className="rounded-md border border-orange-500/35 bg-orange-500/10 px-3 py-2 text-sm text-orange-950">
+              <div className="font-semibold">完成过快</div>
+              <p className="mt-1 text-xs leading-relaxed">
+                {(shellMeta?.hints && shellMeta.hints[0]) ||
+                  "可能未调用真实下游，请核对 job_id / 归档字段。"}
+                {shellMeta?.duration_ms != null
+                  ? ` · ${shellMeta.duration_ms}ms`
+                  : ""}
+              </p>
+            </div>
+          ) : null}
           {task.error_message ? (
             <div className="space-y-2 rounded-md border border-destructive/25 bg-destructive/5 px-3 py-2.5">
               <div className="flex items-center justify-between gap-2">

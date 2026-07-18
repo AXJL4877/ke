@@ -29,10 +29,25 @@ class Settings(BaseSettings):
     modules_dir: str = "./modules"
     cors_origins: str = "http://localhost:3000"
     task_sync: bool = True
+    # Anti-mock: strip demo fields & reject mock params unless explicitly enabled
+    allow_mock: bool = False
+    # Force MODULE_SPEC §10 capabilities[] on load (comma-separated ids exempt)
+    require_capabilities: bool = True
+    capabilities_exempt: str = "echo"
+    # Flag done tasks faster than this as suspicious (ms)
+    fast_completion_ms: int = 3000
+    # When integration.contract.json present: require source module.json on disk
+    require_integration_source: bool = True
+    # When contract present: missing provenance / mock → task failed (not done)
+    enforce_integration_evidence: bool = True
 
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def capabilities_exempt_ids(self) -> set[str]:
+        return {x.strip() for x in self.capabilities_exempt.split(",") if x.strip()}
 
 
 @lru_cache

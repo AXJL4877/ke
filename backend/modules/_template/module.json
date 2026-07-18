@@ -1,0 +1,37 @@
+{
+  "id": "_template-http-bridge",
+  "name": "HTTP 桥接模板（勿用于生产）",
+  "description": "演示如何用 local_service_bridge + integration.contract 接入本机 HTTP 模块。文件夹以下划线开头，不会被 module_loader 扫描。复制后改名并填写真实契约。",
+  "version": "1.0.0",
+  "category": "system",
+  "input_schema": {
+    "url": {
+      "type": "string",
+      "required": true,
+      "label": "示例输入",
+      "description": "模板占位；接入真实模块时按源 input_schema 替换"
+    }
+  },
+  "output_schema": {
+    "ok": { "type": "boolean" },
+    "job_id": { "type": "string" }
+  },
+  "ui_hint": {
+    "hidden": true,
+    "form_layout": "vertical"
+  },
+  "runtime": {
+    "async": true,
+    "timeout_seconds": 1800
+  },
+  "capabilities": [
+    {
+      "id": "template-placeholder",
+      "desc": "模板占位能力；复制模块后删除并改为源模块 capabilities 镜像/子集说明",
+      "kind": "core",
+      "must_keep": true,
+      "endpoints": [],
+      "verify": { "manual": "勿直接加载本模板；复制目录去掉下划线前缀并写入真实 contract" }
+    }
+  ]
+}

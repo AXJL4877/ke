@@ -2,7 +2,12 @@
 
 import { TaskQueueList } from "@/components/task-queue-list/TaskQueueList";
 import { DynamicForm } from "@/components/dynamic-form/DynamicForm";
-import { useModules } from "@/hooks/useModules";
+import { IntegrationChecklist } from "@/components/IntegrationChecklist";
+import {
+  useModuleIntegration,
+  useModules,
+  useReloadModules,
+} from "@/hooks/useModules";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiClient, ApiError } from "@/lib/api-client";
 import { useQueryClient } from "@tanstack/react-query";
@@ -10,12 +15,14 @@ import {
   Suspense,
   startTransition,
   useEffect,
+  useMemo,
   useState,
 } from "react";
 import {
   loadModuleUI,
   type ModuleUI,
 } from "@/modules/_ui-registry";
+import { stripMockFieldsFromSchema } from "@/lib/anti-mock";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
@@ -24,11 +31,19 @@ function TasksContent() {
   const router = useRouter();
   const moduleId = searchParams.get("module");
   const { data: modules, isLoading: modulesLoading } = useModules();
+  const reload = useReloadModules();
+  const { data: integration, isLoading: integrationLoading } =
+    useModuleIntegration(moduleId);
   const queryClient = useQueryClient();
   const mod = modules?.find((m) => m.id === moduleId);
   const [ui, setUi] = useState<ModuleUI | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitOk, setSubmitOk] = useState(false);
+
+  const safeSchema = useMemo(
+    () => (mod ? stripMockFieldsFromSchema(mod.input_schema) : {}),
+    [mod]
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -80,14 +95,25 @@ function TasksContent() {
   return (
     <div className="mx-auto grid max-w-6xl gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
       <div className="space-y-6">
-        <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
-            任务
-          </p>
-          <h1 className="text-2xl font-semibold tracking-tight">提交与跟踪</h1>
-          <p className="text-sm text-muted-foreground">
-            统一表单入口；失败时按校验 / 加载 / 执行 / 落库节点明示。
-          </p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
+              任务
+            </p>
+            <h1 className="text-2xl font-semibold tracking-tight">提交与跟踪</h1>
+            <p className="text-sm text-muted-foreground">
+              默认禁止演示/mock；接入须按 capabilities 逐条验收 must_keep。
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={reload.isPending}
+            onClick={() => reload.mutate()}
+          >
+            {reload.isPending ? "刷新中…" : "刷新模块"}
+          </Button>
         </div>
 
         <section className="space-y-3">
@@ -114,7 +140,9 @@ function TasksContent() {
                 </button>
               ))}
               {(modules?.length ?? 0) === 0 && (
-                <span className="text-sm text-muted-foreground">暂无可用模块</span>
+                <span className="text-sm text-muted-foreground">
+                  暂无可用模块（echo 默认隐藏）。点「刷新模块」或检查 backend/modules/
+                </span>
               )}
             </div>
           )}
@@ -130,6 +158,11 @@ function TasksContent() {
                 </p>
               ) : null}
             </div>
+
+            <IntegrationChecklist
+              report={integration}
+              loading={integrationLoading}
+            />
 
             {submitError ? (
               <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
@@ -154,14 +187,14 @@ function TasksContent() {
 
             {Form ? (
               <Form
-                schema={mod.input_schema}
+                schema={safeSchema}
                 manifest={mod}
                 onSubmit={submit}
                 submitLabel="运行模块"
               />
             ) : (
               <DynamicForm
-                schema={mod.input_schema}
+                schema={safeSchema}
                 onSubmit={submit}
                 submitLabel="运行模块"
               />

@@ -1,9 +1,9 @@
 # KE Studio shell
 
-模块底座（非业务模块）：统一 UI、任务调度、分阶段报错。  
-按仓库根 [MODULE_SPEC.md](../MODULE_SPEC.md) 投放 `modules/<id>`，勿在壳里写死注册表。
+模块底座（非业务模块）：统一 UI、任务调度、分阶段报错、**接入契约门禁**。  
+按 [MODULE_SPEC.md](./MODULE_SPEC.md) / [AGENTS.md](./AGENTS.md) 投放 `modules/<id>`，勿在壳里写死注册表。
 
-本地运行，无 Docker。
+本地运行，无 Docker。本仓库可整体复制到任意新项目；规则在 `.cursor/rules/`。
 
 ## One-click start (Windows，静默)
 
@@ -24,11 +24,26 @@
 ```
 ke/
 ├── MODULE_SPEC.md
-├── start.bat / start.ps1   # 静默启动
-├── stop.bat / stop.ps1     # 停止 :8000 / :3000
-├── logs/                   # 运行日志（gitignore 可选）
-├── frontend/               # Next.js App Router
-└── backend/                # FastAPI (SQLite + sync task runner)
+├── AGENTS.md                 # AI 接入 SOP
+├── docs/INTEGRATION_GUIDE.md # 人读接入详解
+├── schema/integration.contract.schema.json
+├── .cursor/rules/            # 始终生效的接入规则
+├── scripts/verify-integration.ps1
+├── start.bat / start.ps1
+├── stop.bat / stop.ps1
+├── logs/
+├── frontend/
+└── backend/
+    ├── core/
+    │   ├── anti_mock.py
+    │   ├── capabilities.py
+    │   ├── integration_contract.py   # 契约校验
+    │   └── local_service_bridge.py   # 本机服务发现/HTTP
+    ├── modules/
+    │   ├── _template/                # 接入模板（不扫描）
+    │   └── echo/
+    ├── scripts/                      # gen_contract / check_contracts
+    └── tests/
 ```
 
 ## Backend (manual)
@@ -59,8 +74,43 @@ Open http://localhost:3000
 ## Add a task module
 
 1. `backend/modules/<id>/module.json` + `handler.py` (`BaseModuleHandler.run`)
-2. Optional: `frontend/modules/<id>/module.json`（及 Form/Result，仅复杂 UI）
-3. 重启 uvicorn **或** `POST /api/modules/reload`；`GET /api/modules` 应列出该 `id`
-4. **不要**改 worker if-else、导航硬编码、DB 表结构
+2. **`capabilities[]` 必填**（MODULE_SPEC §10）：登记所有必要能力，`must_keep: true` 的不得在接入时漏掉
+3. Optional: `frontend/modules/<id>/`（Form/Result，仅复杂 UI）
+4. 工作台点「刷新模块」，或 `POST /api/modules/reload`；`GET /api/modules/{id}/integration` 看 DoD 清单
+5. **不要**改 worker if-else、导航硬编码、DB 表结构
+6. **禁止**擅自加演示/测试/mock 开关；壳默认剥离并拒绝（确需调试设 `KE_ALLOW_MOCK=1`）
 
-新模块默认走壳层 DynamicForm，UI 自动统一。
+新模块默认走壳层 DynamicForm，UI 自动统一。示例 `echo` 默认 `ui_hint.hidden`，不抢业务工作台。
+
+## 接入本机 HTTP 模块（推荐路径）
+
+详见 [docs/INTEGRATION_GUIDE.md](./docs/INTEGRATION_GUIDE.md) 与 [AGENTS.md](./AGENTS.md)。
+
+```powershell
+# 1) 从源 module.json 生成契约骨架
+cd ke/backend
+$env:PYTHONPATH="."
+python -m scripts.gen_contract --source <源>/module.json --module-id <id> --out modules/<id>/integration.contract.json
+
+# 2) 复制 modules/_template → modules/<id>，用 local_service_bridge 实现 handler
+
+# 3) 验收
+cd ..
+.\scripts\verify-integration.ps1 -StrictManual
+cd backend
+python -m pytest tests/test_integration_gate.py -q
+```
+
+有 `integration.contract.json` 时：加载校验 must_keep 全覆盖；任务结果强制 `provenance`，禁止 mock 假成功。
+
+## Anti-mock & capabilities（壳强制）
+
+| 约定 | 行为 |
+|------|------|
+| 默认禁 mock | 表单字段名/标签含 mock、demo、演示、测试模式等 → API 剥离；提交带这些参数 → 400 |
+| 假成功告警 | 结果含演示文案 / `is_mock` → 任务卡黄标；过快完成（默认 &lt;3s）→ 橙标提示 |
+| 强制 capabilities | 业务模块缺 `capabilities[]` → **拒绝加载**；`echo` 默认豁免（`KE_CAPABILITIES_EXEMPT`） |
+| 接入清单 | `GET /api/modules/{id}/integration` + 任务页展示 must_keep 项 |
+| 接入契约 | 有 `integration.contract.json` → must_keep 映射 + 结果证据门禁（§11） |
+
+环境变量（前缀 `KE_`）：`ALLOW_MOCK`、`REQUIRE_CAPABILITIES`、`CAPABILITIES_EXEMPT`、`FAST_COMPLETION_MS`、`REQUIRE_INTEGRATION_SOURCE`、`ENFORCE_INTEGRATION_EVIDENCE`。

@@ -1,11 +1,10 @@
 /**
- * Shell <-> modules registry: merge remote GET /api/modules with local manifests.
- * Spec: repo-root MODULE_SPEC.md
+ * Shell <-> modules registry: prefer GET /api/modules only.
+ * Do not hardcode business module ids here (MODULE_SPEC §9.2).
  */
 import type { ModuleManifest } from "@/types/module";
-import echoManifest from "./echo/module.json";
 
-const LOCAL_MANIFESTS: ModuleManifest[] = [echoManifest as ModuleManifest];
+const LOCAL_MANIFESTS: ModuleManifest[] = [];
 
 export function mergeModuleRegistry(
   remote: ModuleManifest[] = []
@@ -13,7 +12,9 @@ export function mergeModuleRegistry(
   const map = new Map<string, ModuleManifest>();
   for (const m of LOCAL_MANIFESTS) map.set(m.id, m);
   for (const m of remote) map.set(m.id, m);
-  return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  return Array.from(map.values())
+    .filter((m) => !m.ui_hint?.hidden)
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export function getLocalModules(): ModuleManifest[] {

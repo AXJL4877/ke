@@ -22,6 +22,19 @@ export type FieldSpec = {
   max_length?: number;
 };
 
+export type CapabilityVerify =
+  | { method: string; path: string; expect?: Record<string, unknown>; body?: unknown }
+  | { manual: string };
+
+export type ModuleCapability = {
+  id: string;
+  desc: string;
+  kind: "core" | "aux" | "invariant" | string;
+  must_keep: boolean;
+  endpoints?: string[];
+  verify: CapabilityVerify;
+};
+
 export type ModuleManifest = {
   id: string;
   name: string;
@@ -43,4 +56,35 @@ export type ModuleManifest = {
     timeout_seconds?: number;
   };
   local?: Record<string, unknown>;
+  capabilities?: ModuleCapability[];
+  /** 壳注入：防 mock / capabilities 警告 */
+  shell?: {
+    warnings?: string[];
+    stripped_mock_fields?: string[];
+    allow_mock?: boolean;
+    capabilities_ok?: boolean;
+  };
+};
+
+export type IntegrationReport = {
+  module_id: string;
+  ok: boolean;
+  capabilities_declared: number;
+  must_keep_count: number;
+  auto_verify_count: number;
+  manual_verify_count: number;
+  items: Array<{
+    id: string;
+    desc: string;
+    kind: string;
+    must_keep: boolean;
+    endpoints: string[];
+    verify_mode: string;
+    verify: Record<string, unknown>;
+    host_action: string;
+  }>;
+  message: string;
+  warnings: string[];
+  stripped_mock_fields: string[];
+  allow_mock: boolean;
 };

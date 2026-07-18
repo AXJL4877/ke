@@ -21,10 +21,21 @@
   },
   "ui_hint": {
     "form_layout": "vertical",
-    "icon": "message"
+    "icon": "message",
+    "hidden": true
   },
   "runtime": {
     "async": false,
     "timeout_seconds": 30
-  }
+  },
+  "capabilities": [
+    {
+      "id": "echo-roundtrip",
+      "desc": "原样回显 message；壳自带验收用，业务项目可忽略",
+      "kind": "core",
+      "must_keep": true,
+      "endpoints": [],
+      "verify": { "manual": "提交 message=hello 应返回 echo=hello" }
+    }
+  ]
 }

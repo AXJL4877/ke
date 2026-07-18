@@ -5,8 +5,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from api.config import get_settings
 from api.deps import DbDep, get_optional_user
 from api.schemas.task import TaskCreate, TaskOut
+from core.anti_mock import find_mock_params, strip_mock_params
 from db.models import Task
 from db.session import SessionLocal
+from worker.module_loader import get_module_loader
 from worker.tasks import enqueue_task, execute_task
 
 router = APIRouter()
@@ -18,9 +20,31 @@ def create_task(
     db: DbDep,
     user=Depends(get_optional_user),
 ) -> Task:
+    settings = get_settings()
+    loader = get_module_loader(force_reload=False)
+    if loader.get_raw_manifest(body.module_id) is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"未知模块 {body.module_id!r}。请确认已放入 backend/modules/ 并 reload。",
+        )
+
+    params = dict(body.input_params or {})
+    mock_hits = find_mock_params(params)
+    if mock_hits and not settings.allow_mock:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "壳默认禁止演示/测试模式，未要求勿加 mock。"
+                f"检测到参数: {mock_hits}。"
+                "若确需调试请设置环境变量 KE_ALLOW_MOCK=1。"
+            ),
+        )
+    if not settings.allow_mock:
+        params = strip_mock_params(params)
+
     task = Task(
         module_id=body.module_id,
-        input_params=body.input_params,
+        input_params=params,
         status="pending",
         user_id=user.id if user else None,
     )

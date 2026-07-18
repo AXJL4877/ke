@@ -1,0 +1,207 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ke.local/schema/integration.contract.schema.json",
+  "title": "KE Module Integration Contract",
+  "description": "机器可读接入契约：把源模块 capabilities[] 全量映射到 ke 宿主接线，禁止漏接 must_keep 能力。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "module_id",
+    "source",
+    "capability_wiring",
+    "success_evidence",
+    "execution"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "description": "契约格式版本",
+      "default": "1.0.0"
+    },
+    "module_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "ke backend/modules/<id> 的 module.json id，须与文件夹名一致"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["service_id", "label", "manifest_path"],
+      "properties": {
+        "service_id": {
+          "type": "string",
+          "description": "ports.json 注册 key，如 download / transcript / tts"
+        },
+        "label": {
+          "type": "string",
+          "description": "源模块 local.label，/health.service 必须等于此值"
+        },
+        "manifest_path": {
+          "type": "string",
+          "description": "相对 ke 根或绝对路径；指向源 module.json（可来自 git clone / 同级 mo_kuai）"
+        },
+        "manifest_sha256": {
+          "type": "string",
+          "description": "可选：源 module.json UTF-8 内容 sha256；有则加载时校验指纹"
+        },
+        "version": {
+          "type": "string",
+          "description": "源模块 version 快照"
+        },
+        "default_port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "max_tries": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 12
+        },
+        "env_base_url": {
+          "type": "string",
+          "description": "可选：覆盖发现的环境变量名，如 DOWNLOAD_BASE_URL"
+        },
+        "proxy_prefixes": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "宿主须代理的前缀（通常抄自源 local.proxy）"
+        }
+      }
+    },
+    "depends_on": {
+      "type": "array",
+      "description": "编排型额外下游（除 source 外）",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["service_id", "label"],
+        "properties": {
+          "service_id": { "type": "string" },
+          "label": { "type": "string" },
+          "default_port": { "type": "integer" },
+          "max_tries": { "type": "integer", "default": 12 },
+          "env_base_url": { "type": "string" },
+          "required_capabilities": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "capability_wiring": {
+      "type": "array",
+      "minItems": 1,
+      "description": "必须覆盖源模块全部 must_keep=true 能力；禁止自行删减",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["capability_id", "wiring"],
+        "properties": {
+          "capability_id": {
+            "type": "string",
+            "description": "源 capabilities[].id"
+          },
+          "wiring": {
+            "type": "string",
+            "enum": ["handler", "proxy", "ui", "preserved_internal"],
+            "description": "handler=任务路径调用；proxy=宿主 HTTP 代理；ui=表单/面板入口；preserved_internal=源服务内部行为，宿主不得屏蔽"
+          },
+          "notes": { "type": "string" },
+          "proxy_paths": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "本能力需代理的路径（通常抄 endpoints）"
+          },
+          "params_passthrough": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "须原样透传的参数名"
+          }
+        }
+      }
+    },
+    "params_map": {
+      "type": "object",
+      "description": "ke input_schema 字段 → 下游请求字段；缺省表示同名透传",
+      "additionalProperties": { "type": "string" }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode"],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["sync", "async_job", "binary", "multipart"],
+          "description": "sync=同步 JSON；async_job=提交后轮询 /jobs；binary=原始字节；multipart=文件上传"
+        },
+        "timeout_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1800
+        },
+        "poll_interval_ms": {
+          "type": "integer",
+          "minimum": 100,
+          "default": 2000
+        },
+        "job_path_template": {
+          "type": "string",
+          "description": "异步查询路径，如 /jobs/{job_id}",
+          "default": "/jobs/{job_id}"
+        },
+        "min_duration_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "可选：低于此耗时且缺成功证据时判假成功；同步短任务可设 0"
+        },
+        "fast_completion_ok": {
+          "type": "boolean",
+          "default": false,
+          "description": "true=允许真实快速完成（如纯文本转换），不因耗时告警失败"
+        }
+      }
+    },
+    "success_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["require_provenance"],
+      "properties": {
+        "require_provenance": {
+          "type": "boolean",
+          "description": "结果必须含 provenance 对象"
+        },
+        "required_result_keys": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "成功结果必含字段（如 archive_id）；异步建议含 job_id"
+        },
+        "provenance_fields": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": ["source", "service", "mock"]
+        },
+        "forbid_mock": {
+          "type": "boolean",
+          "default": true
+        }
+      }
+    },
+    "manual_acceptance": {
+      "type": "array",
+      "description": "仅有 verify.manual 的 must_keep 项须在此留下验收记录，否则 verify 报告未完成",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["capability_id", "accepted", "note"],
+        "properties": {
+          "capability_id": { "type": "string" },
+          "accepted": { "type": "boolean" },
+          "note": { "type": "string", "minLength": 1 },
+          "accepted_at": { "type": "string" }
+        }
+      }
+    }
+  }
+}

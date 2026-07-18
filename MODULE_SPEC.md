@@ -443,3 +443,62 @@ export { Result } from "./Result";
 ```
 
 > 文件产物（视频 / 图片 / 下载）可直接参考并复用 `components/dynamic-form/DefaultResult.tsx` 的主预览分支，通常**无需**自定义 Result。
+
+---
+
+## 10. 能力登记与接入自检（强制）
+
+> 解决：核心能力没问题，但 cookie / upload / jobs 等「小功能」接入时被漏接。
+
+`module.json` 顶层 **`capabilities[]` 必填**（业务模块；`echo` 可经 `KE_CAPABILITIES_EXEMPT` 豁免）。每条含：`id`、`desc`、`kind`（core|aux|invariant）、`must_keep`、`verify`，可选 `endpoints`。
+
+- 壳加载：`KE_REQUIRE_CAPABILITIES=true` 时缺数组 → **拒绝加载**
+- 清单 API：`GET /api/modules/{id}/integration`
+- 源 HTTP 模块另附 `verify.mjs` / `verify.py`；接入后须直连 + 过代理各跑一遍
+
+完整字段与示例见仓库外权威副本或本文件历史同步源；**ke 接入完成定义以 §11 为准**。
+
+---
+
+## 11. 接入契约 `integration.contract.json`（ke 强制）
+
+> 当 ke handler 调用本机 HTTP 源模块时，必须在 `backend/modules/<id>/` 旁放置契约文件，把源 `must_keep` 能力**全量映射**到宿主接线。
+
+### 11.1 文件与 Schema
+
+| 项 | 路径 |
+|----|------|
+| Schema | `schema/integration.contract.schema.json` |
+| 校验实现 | `backend/core/integration_contract.py` |
+| HTTP 桥接 | `backend/core/local_service_bridge.py` |
+| 模板 | `backend/modules/_template/`（下划线目录，不扫描） |
+| 生成骨架 | `python -m scripts.gen_contract` |
+| 一键检查 | `scripts/verify-integration.ps1` |
+
+### 11.2 契约必填内容
+
+- `source`：`service_id`、`label`（= `/health.service`）、`manifest_path`（可选 `manifest_sha256`）
+- `capability_wiring[]`：覆盖源模块全部 `must_keep`；`wiring` ∈ `handler|proxy|ui|preserved_internal`
+- 有 `endpoints` 的 must_keep：须声明 `proxy_paths`（`preserved_internal` 除外）
+- `execution.mode`：`sync|async_job|binary|multipart`；`async_job` 时 `success_evidence.required_result_keys` 须含 `job_id` 或 `archive_id`
+- `success_evidence.require_provenance`：结果须含 `provenance.{source,service,mock}`
+- `manual_acceptance`：仅 `verify.manual` 的 must_keep 须人工 `accepted: true`（`--strict-manual` 门禁）
+
+### 11.3 加载与运行门禁
+
+1. **加载**：存在契约 → 形状校验 +（默认）源 manifest 可读 + must_keep 全覆盖；失败则模块不注册
+2. **运行**：`KE_ENFORCE_INTEGRATION_EVIDENCE=true`（默认）→ 缺 provenance / 含 mock 文案 / 异步缺 job 证据 / 违反 `min_duration_ms` → **任务 failed**，不得 done
+3. **发现**：`env → ports.json → defaultPort 顺延`，校验 `health.service === label`；**禁止**写死端口
+
+### 11.4 接入完成定义（DoD）
+
+```
+契约 must_keep 全映射
+  + verify-integration（auto 全绿；strict 时 manual 已验收）
+  + 结果 provenance.mock=false 且含约定证据
+  = 接入完成
+```
+
+只接 `local.endpoint`、漏 `/cookies/*`、返回演示文案 → **未完成**。
+
+人读流程：`AGENTS.md`、`docs/INTEGRATION_GUIDE.md`。

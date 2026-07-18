@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form";
 import type { FieldSpec, ModuleManifest } from "@/types/module";
+import { stripMockFieldsFromSchema } from "@/lib/anti-mock";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -36,16 +37,17 @@ function hasTextarea(schema: Record<string, FieldSpec>) {
 
 /** Auto-render form from MODULE_SPEC.md §3 / §9 */
 export function DynamicForm({ schema, onSubmit, submitLabel = "Submit" }: Props) {
+  const safeSchema = stripMockFieldsFromSchema(schema);
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm({
-    defaultValues: defaultsFromSchema(schema),
+    defaultValues: defaultsFromSchema(safeSchema),
   });
 
-  const wide = hasTextarea(schema);
-  const entries = Object.entries(schema);
+  const wide = hasTextarea(safeSchema);
+  const entries = Object.entries(safeSchema);
   const longFields = entries.filter(([, d]) => !isParamField(d));
   const paramFields = entries.filter(([, d]) => isParamField(d));
 

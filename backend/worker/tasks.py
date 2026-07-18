@@ -8,6 +8,7 @@ Execution stages (for explicit error UI):
 from __future__ import annotations
 
 import logging
+import time
 from uuid import UUID
 
 from worker.celery_app import celery_app
@@ -36,6 +37,8 @@ class StageError(Exception):
 
 def execute_task(task_id: str) -> dict:
     """Run one task in-process (used by local sync mode and Celery worker)."""
+    from api.config import get_settings
+    from core.anti_mock import annotate_shell_result
     from db.models import Task
     from db.session import SessionLocal
 
@@ -61,10 +64,52 @@ def execute_task(task_id: str) -> dict:
             raise StageError("load", str(exc), module_id) from exc
 
         stage = "run"
+        t0 = time.perf_counter()
         try:
             result = handler.run(dict(task.input_params or {}))
         except Exception as exc:
             raise StageError("run", str(exc), module_id) from exc
+        duration_ms = int((time.perf_counter() - t0) * 1000)
+
+        settings = get_settings()
+        contract = loader.get_contract(task.module_id) if module_id else None
+        if (
+            contract
+            and settings.enforce_integration_evidence
+            and isinstance(result, dict)
+        ):
+            from core.integration_contract import (
+                IntegrationContractError,
+                validate_task_result_against_contract,
+            )
+
+            # Prefer contract-specific threshold over global fast_completion_ms
+            exec_cfg = contract.get("execution") or {}
+            if exec_cfg.get("fast_completion_ok"):
+                fast_threshold = 0  # disable annotate fast flag noise
+            elif isinstance(exec_cfg.get("min_duration_ms"), int):
+                fast_threshold = max(
+                    settings.fast_completion_ms,
+                    int(exec_cfg["min_duration_ms"]),
+                )
+            else:
+                fast_threshold = settings.fast_completion_ms
+            try:
+                validate_task_result_against_contract(
+                    result, contract, duration_ms=duration_ms
+                )
+            except IntegrationContractError as exc:
+                raise StageError("run", f"接入证据校验失败：{exc}", module_id) from exc
+        else:
+            fast_threshold = settings.fast_completion_ms
+
+        if isinstance(result, dict):
+            result = annotate_shell_result(
+                result,
+                duration_ms=duration_ms,
+                fast_threshold_ms=fast_threshold if fast_threshold > 0 else 10**9,
+                module_id=module_id,
+            )
 
         stage = "persist"
         try:
