@@ -15,9 +15,11 @@
 
 - **静默**：backend / frontend **不弹命令窗**，日志写入 `logs/backend.log`、`logs/frontend.log`
 - **一键拉起接入模块后端**：扫描 `backend/modules/*/integration.contract.json` 的 `source` / `depends_on`，若未在线则**静默**启动源模块（日志 `logs/locals/`）
+- **Python 环境自愈**：启动下游前校验其 `.venv`（`pyvenv.cfg` + `Scripts/python.exe` + 最小运行探针）；残缺/不可运行则删除，由模块启动脚本在本机重建
 - 健康检查通过后自动打开浏览器 `http://localhost:3000`
 - 停止：双击 `stop.bat` 或 `.\stop.ps1`（默认连带停掉 ke 拉起的本地后端；只停壳：`$env:KE_STOP_LOCALS='0'`）
 - 跳过拉起下游：`$env:KE_AUTO_START_LOCAL='0'`
+- 关闭 `.venv` 自愈（仅排障）：`$env:KE_REPAIR_VENV='0'`
 
 排障：看 `logs/`；启动失败时 `start.ps1` 会打印日志末尾。
 

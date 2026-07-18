@@ -12,6 +12,19 @@
 
 可从 GitHub clone 到 ke 同级目录，或任意路径；契约里写相对/绝对 `manifest_path`。
 
+### 复制边界（强制）
+
+只复制源码与依赖清单，**不要复制 `.venv` / `node_modules`**。Python 虚拟环境含本机解释器路径，不是可移植产物。
+
+ke 启动下游前会做统一自愈检查：
+
+1. 在源模块目录有限深度内查找 `.venv`
+2. 校验 `pyvenv.cfg`、Windows `Scripts/python.exe` 和最小 Python 运行探针
+3. 判定损坏时只删除模块目录内、名称严格为 `.venv` 的目录
+4. 随后调用源模块启动脚本，由其按 `requirements.txt` 在本机重建
+
+因此该机制对 transcript / ASR / AI 等所有 Python 下游一致生效，不写业务模块特例。
+
 ## 2. 生成契约
 
 在 `ke/backend`：

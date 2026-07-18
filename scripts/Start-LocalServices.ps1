@@ -25,18 +25,6 @@ if ($env:KE_AUTO_START_LOCAL -eq "0" -or $env:KE_AUTO_START_LOCAL -eq "false") {
   return @{ started = @(); skipped = @(); failed = @(); reused = @() }
 }
 
-# service_id -> typical folder name under mo_kuai
-$FolderAliases = @{
-  download   = "video_download"
-  asr        = "audio_asr"
-  tts        = "text_to_voice"
-  transcript = "video_transcript"
-  "ai-in"    = "AI_in"
-  compose    = "video_creat"
-  remotion   = "video_remotion"
-  richtext   = "rich_txt"
-}
-
 function Test-HealthLabel {
   param([string]$BaseUrl, [string]$ExpectLabel, [string]$HealthPath = "/health")
   try {
@@ -87,7 +75,6 @@ function Resolve-ModuleFolder {
     }
   }
   $names = New-Object System.Collections.Generic.List[string]
-  if ($FolderAliases.ContainsKey($ServiceId)) { [void]$names.Add($FolderAliases[$ServiceId]) }
   if ($Label) { [void]$names.Add($Label) }
   [void]$names.Add($ServiceId)
   $roots = @(
@@ -106,6 +93,26 @@ function Resolve-ModuleFolder {
         return (Resolve-Path $cand).Path
       }
     }
+  }
+
+  # Generic fallback: inspect direct child manifests and match by declared id
+  # or local.label. This avoids maintaining module-specific folder aliases.
+  foreach ($root in $roots) {
+    if (-not $root -or -not (Test-Path -LiteralPath $root -PathType Container)) { continue }
+    try {
+      foreach ($child in @(Get-ChildItem -LiteralPath $root -Directory -ErrorAction Stop)) {
+        $manifest = Join-Path $child.FullName "module.json"
+        if (-not (Test-Path -LiteralPath $manifest -PathType Leaf)) { continue }
+        try {
+          $data = Get-Content -LiteralPath $manifest -Raw -Encoding UTF8 | ConvertFrom-Json
+          $idMatch = ([string]$data.id -eq $ServiceId)
+          $labelMatch = ($data.local -and [string]$data.local.label -eq $Label)
+          if ($idMatch -or $labelMatch) {
+            return (Resolve-Path -LiteralPath $child.FullName).Path
+          }
+        } catch { }
+      }
+    } catch { }
   }
   return $null
 }
@@ -141,6 +148,90 @@ function Resolve-StartScript {
     if (Test-Path $p) { return $p }
   }
   return $null
+}
+
+function Get-PythonVenvCandidates {
+  param(
+    [string]$Folder,
+    [int]$MaxDepth = 3
+  )
+  $found = New-Object System.Collections.Generic.List[string]
+  $queue = New-Object System.Collections.Queue
+  $queue.Enqueue([pscustomobject]@{ Path = $Folder; Depth = 0 })
+  $skipNames = @(".git", "node_modules", "dist", "build", "outputs", "__pycache__")
+
+  while ($queue.Count -gt 0) {
+    $item = $queue.Dequeue()
+    if ($item.Depth -gt $MaxDepth) { continue }
+    try {
+      Get-ChildItem -LiteralPath $item.Path -Directory -Force -ErrorAction Stop | ForEach-Object {
+        if ($_.Name -eq ".venv") {
+          [void]$found.Add($_.FullName)
+          return
+        }
+        if ($item.Depth -lt $MaxDepth -and $skipNames -notcontains $_.Name) {
+          $queue.Enqueue([pscustomobject]@{
+            Path = $_.FullName
+            Depth = $item.Depth + 1
+          })
+        }
+      }
+    } catch { }
+  }
+  return $found
+}
+
+function Test-PythonVenvHealthy {
+  param([string]$VenvPath)
+  $cfg = Join-Path $VenvPath "pyvenv.cfg"
+  $python = Join-Path $VenvPath "Scripts\python.exe"
+  if (-not (Test-Path -LiteralPath $cfg -PathType Leaf)) { return $false }
+  if (-not (Test-Path -LiteralPath $python -PathType Leaf)) { return $false }
+
+  # Structural files can both exist in a copied/truncated venv. Execute a
+  # minimal probe as the final check; a valid environment returns exit code 0.
+  try {
+    & $python -c "import sys; assert sys.prefix" 1>$null 2>$null
+    return ($LASTEXITCODE -eq 0)
+  } catch {
+    return $false
+  }
+}
+
+function Repair-BrokenPythonVenvs {
+  param([string]$Folder)
+  if ($env:KE_REPAIR_VENV -eq "0" -or $env:KE_REPAIR_VENV -eq "false") {
+    Write-Host "[ke-local] KE_REPAIR_VENV=0, skip venv preflight"
+    return $true
+  }
+
+  $ok = $true
+  foreach ($venv in (Get-PythonVenvCandidates -Folder $Folder)) {
+    if (Test-PythonVenvHealthy -VenvPath $venv) {
+      Write-Host "[ke-local] venv healthy: $venv"
+      continue
+    }
+
+    # Only directories literally named .venv under the resolved module folder
+    # are eligible. Never delete an arbitrary Python path.
+    $leaf = Split-Path -Leaf $venv
+    $fullFolder = [System.IO.Path]::GetFullPath($Folder).TrimEnd("\")
+    $fullVenv = [System.IO.Path]::GetFullPath($venv)
+    if ($leaf -ne ".venv" -or -not $fullVenv.StartsWith($fullFolder + "\", [System.StringComparison]::OrdinalIgnoreCase)) {
+      Write-Warning "[ke-local] refuse to remove unsafe venv path: $venv"
+      $ok = $false
+      continue
+    }
+
+    Write-Warning "[ke-local] broken .venv detected; removing so module start script can rebuild: $venv"
+    try {
+      Remove-Item -LiteralPath $venv -Recurse -Force -ErrorAction Stop
+    } catch {
+      Write-Warning "[ke-local] cannot remove broken .venv: $($_.Exception.Message)"
+      $ok = $false
+    }
+  }
+  return $ok
 }
 
 function Start-ServiceSilent {
@@ -261,6 +352,12 @@ foreach ($sid in ($services.Keys | Sort-Object)) {
   }
   if (-not $svc.script) {
     Write-Warning "[ke-local] no start script in $($svc.folder)"
+    $failed += $svc.service_id
+    continue
+  }
+
+  if (-not (Repair-BrokenPythonVenvs -Folder $svc.folder)) {
+    Write-Warning "[ke-local] venv preflight failed for $($svc.service_id); not starting a known-broken environment"
     $failed += $svc.service_id
     continue
   }

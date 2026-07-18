@@ -43,12 +43,18 @@
 
 1. 扫描已接入模块的 `integration.contract.json`（`source` + `depends_on`）
 2. 用 `manifest_path` / 同级 `mo_kuai/<folder>` 找到源目录
-3. 读源 `module.json` → `local.start`，**静默**启动（无黑窗；优先 `start_api` / `start.bat`，避免 `start_web` 弹浏览器）
-4. 探活 `/health.service === label`，写 `ports.json` 由源脚本自己完成
-5. 再启 ke 前后端
+3. 启动前检查源目录内 `.venv`：必须同时有 `pyvenv.cfg`、`Scripts/python.exe` 且能运行最小 Python 探针；损坏则删除，让源启动脚本重建
+4. 读源 `module.json` → `local.start`，**静默**启动（无黑窗；优先 `start_api` / `start.bat`，避免 `start_web` 弹浏览器）
+5. 探活 `/health.service === label`，写 `ports.json` 由源脚本自己完成
+6. 再启 ke 前后端
 
-单独补拉：`.\scripts\Start-LocalServices.ps1`  
-跳过：`$env:KE_AUTO_START_LOCAL='0'`
+单独补拉：`.\scripts\Start-LocalServices.ps1`
+
+跳过下游：`$env:KE_AUTO_START_LOCAL='0'`
+
+关闭 venv 自愈（仅排障）：`$env:KE_REPAIR_VENV='0'`
+
+> 组装项目时不要复制 `.venv` / `node_modules`。虚拟环境不是源码，必须由目标机器按依赖清单创建；启动器自愈是第二道保险。
 
 ## 完成定义（DoD）
 

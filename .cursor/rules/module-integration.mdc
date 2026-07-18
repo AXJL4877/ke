@@ -14,6 +14,7 @@ alwaysApply: true
 3. **再写** `handler.py`，只用 `core.local_service_bridge` 做发现/请求/轮询；**禁止**写死 `127.0.0.1:固定端口`。
 4. **代理** `capabilities[].endpoints` 与契约里 `wiring=proxy` 的路径（如 `/cookies/*`），不得只代理主路径。
 5. **完成前**运行：`.\scripts\verify-integration.ps1`（有契约模块）+ 相关 pytest；`must_keep` 漏映射必须失败。
+6. 复制/组装源模块时**禁止复制 `.venv`**（以及 `node_modules`）；只复制源码和依赖清单，由目标机器首次启动创建环境。
 
 ## 禁止
 
@@ -23,6 +24,7 @@ alwaysApply: true
 - 在 `tasks.py` / loader 里写 `module_id` if-else
 - 声称「接入完成」但契约缺 `manual_acceptance` 或 verify 未跑
 - 要求用户手动先开下游：契约写好 `source`/`depends_on` + `manifest_path` 后，由 `start.ps1` → `Start-LocalServices.ps1` 静默拉起
+- 把源机器的 `.venv` 当作模块源码复制进 `deps/`；ke 启动器会在启动前校验 `pyvenv.cfg` + `Scripts/python.exe` + 最小 Python 探针，损坏则安全删除并交给源启动脚本重建
 
 ## 成功证据
 
