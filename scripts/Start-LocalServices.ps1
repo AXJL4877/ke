@@ -241,21 +241,41 @@ function Start-ServiceSilent {
     [string]$ScriptPath,
     [string]$LogPath
   )
+  # True no-console start: CreateNoWindow (WindowStyle Hidden alone still lets
+  # child node/python allocate a visible cmd window).
+  $errLog = $LogPath + ".err"
   "" | Set-Content -Path $LogPath -Encoding UTF8
+  "" | Set-Content -Path $errLog -Encoding UTF8
+
+  $psi = New-Object System.Diagnostics.ProcessStartInfo
+  $psi.WorkingDirectory = $Folder
+  $psi.UseShellExecute = $false
+  $psi.CreateNoWindow = $true
+  $psi.RedirectStandardInput = $false
+  $psi.RedirectStandardOutput = $false
+  $psi.RedirectStandardError = $false
+
   $ext = [System.IO.Path]::GetExtension($ScriptPath).ToLowerInvariant()
+  # Quote paths; append stdout/stderr to ke logs (avoids pipe deadlock on long-lived servers).
+  $qFolder = $Folder.Replace('"', '""')
+  $qScript = $ScriptPath.Replace('"', '""')
+  $qLog = $LogPath.Replace('"', '""')
+  $qErr = $errLog.Replace('"', '""')
+
   if ($ext -eq ".ps1") {
-    $proc = Start-Process -FilePath "powershell.exe" -WorkingDirectory $Folder -WindowStyle Hidden -PassThru -ArgumentList @(
-      "-NoProfile",
-      "-ExecutionPolicy", "Bypass",
-      "-File", $ScriptPath
-    ) -RedirectStandardOutput $LogPath -RedirectStandardError ($LogPath + ".err")
+    $psi.FileName = "powershell.exe"
+    # -WindowStyle Hidden is ignored when UseShellExecute=$false; CreateNoWindow is what matters.
+    $psi.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$qScript`" >> `"$qLog`" 2>> `"$qErr`""
   } else {
-    # cmd /c keeps the console-less process for long-running node/uvicorn bats
-    $proc = Start-Process -FilePath "cmd.exe" -WorkingDirectory $Folder -WindowStyle Hidden -PassThru -ArgumentList @(
-      "/c",
-      "`"$ScriptPath`""
-    ) -RedirectStandardOutput $LogPath -RedirectStandardError ($LogPath + ".err")
+    $psi.FileName = "cmd.exe"
+    # /c run bat; >> logs so node/uvicorn grandchildren inherit no interactive console.
+    $psi.Arguments = "/c `"`"$qScript`" >>`"$qLog`" 2>>`"$qErr`"`""
   }
+
+  $proc = New-Object System.Diagnostics.Process
+  $proc.StartInfo = $psi
+  [void]$proc.Start()
+  Write-Host "[ke-local] spawned pid=$($proc.Id) CreateNoWindow=1 ($ServiceId)"
   return $proc
 }
 
