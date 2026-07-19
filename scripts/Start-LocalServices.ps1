@@ -263,9 +263,9 @@ function Start-ServiceSilent {
   $qErr = $errLog.Replace('"', '""')
 
   if ($ext -eq ".ps1") {
-    $psi.FileName = "powershell.exe"
-    # -WindowStyle Hidden is ignored when UseShellExecute=$false; CreateNoWindow is what matters.
-    $psi.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$qScript`" >> `"$qLog`" 2>> `"$qErr`""
+    $psi.FileName = "cmd.exe"
+    # Wrap powershell so >> is handled by cmd (CreateNoWindow path has no shell redirect otherwise).
+    $psi.Arguments = "/c powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$qScript`" >>`"$qLog`" 2>>`"$qErr`""
   } else {
     $psi.FileName = "cmd.exe"
     # /c run bat; >> logs so node/uvicorn grandchildren inherit no interactive console.
