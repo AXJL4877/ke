@@ -40,6 +40,24 @@
 - 任务页：模块标题下不展示 `module.description`
 - 假数据：仅结果卡软提示，不拦截
 
+## 资产部门（一期）
+
+任务成功后，可复用产物会自动登记到 **资产库**（侧栏「资产」）：
+
+- 触发：`execute_task` 成功 persist 之后；失败不入库
+- 抽取：优先 `module.json` 的 `asset_extract`；否则保守启发式（长文本 / `/files` URL）
+- 删除任务：**不**级联删资产
+- API：`/api/assets`；详情见 `docs/ASSET_VAULT_DESIGN.md`
+
+接入模块成功返回时尽量带可读 `title`、正文或文件 URL，并建议声明：
+
+```json
+"asset_extract": [
+  { "from": "text", "kind": "text", "title_from": "title" },
+  { "from": "result_file", "kind": "audio", "is_file": true }
+]
+```
+
 ## 标准接入 SOP
 
 ```text
@@ -70,6 +88,8 @@
 | `scripts/verify-integration.ps1` | 一键契约检查 |
 | `scripts/Start-LocalServices.ps1` | 按契约静默拉起本机 HTTP 后端（start.ps1 自动调用） |
 | `docs/INTEGRATION_GUIDE.md` | 人读详解 |
+| `docs/ASSET_VAULT_DESIGN.md` | 资产部门设计与验收 |
+| `backend/core/assets.py` | 资产抽取 / 自动入库 |
 | `.cursor/rules/module-integration.mdc` | Cursor 始终生效规则 |
 
 ## 一键启动下游

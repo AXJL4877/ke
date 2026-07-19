@@ -42,6 +42,9 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
         <Link href="/tasks" className={linkClass("/tasks")}>
           {collapsed ? "☰" : "任务"}
         </Link>
+        <Link href="/assets" className={linkClass("/assets")}>
+          {collapsed ? "◇" : "资产"}
+        </Link>
       </nav>
       {!collapsed && (
         <div className="mt-2 flex min-h-0 flex-1 flex-col border-t border-border/70 p-2">

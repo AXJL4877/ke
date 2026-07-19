@@ -117,6 +117,31 @@ def execute_task(task_id: str) -> dict:
             db.rollback()
             raise StageError("persist", str(exc), module_id) from exc
 
+        # Asset vault: best-effort ingest after success (never fail the task)
+        if isinstance(result, dict):
+            try:
+                from core.assets import register_assets_from_task
+
+                manifest = loader.get_raw_manifest(task.module_id)
+                summaries = register_assets_from_task(
+                    db,
+                    task_id=task.id,
+                    module_id=task.module_id,
+                    result=result,
+                    manifest=manifest,
+                    user_id=task.user_id,
+                )
+                if summaries:
+                    task = db.get(Task, UUID(task_id))
+                    if task is not None and isinstance(task.result, dict):
+                        merged = dict(task.result)
+                        merged["_assets"] = summaries
+                        task.result = merged
+                        db.commit()
+                        result = merged
+            except Exception:
+                logger.exception("asset ingest skipped for task %s", task_id)
+
         return {"ok": True, "task_id": task_id, "result": result}
     except StageError as exc:
         logger.exception("task %s failed at %s", task_id, exc.stage)

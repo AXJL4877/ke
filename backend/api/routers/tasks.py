@@ -108,10 +108,17 @@ def clear_finished_tasks(
     db: DbDep,
     module_id: str | None = Query(default=None),
 ) -> dict:
-    """批量清空已结束（done/failed）的任务，可按模块过滤。"""
+    """批量清空已结束（done/failed）的任务，可按模块过滤。资产保留。"""
+    from db.models import Asset
+
     q = db.query(Task).filter(Task.status.in_(["done", "failed"]))
     if module_id:
         q = q.filter(Task.module_id == module_id)
+    task_ids = [row.id for row in q.with_entities(Task.id).all()]
+    if task_ids:
+        db.query(Asset).filter(Asset.task_id.in_(task_ids)).update(
+            {Asset.task_id: None}, synchronize_session=False
+        )
     deleted = q.delete(synchronize_session=False)
     db.commit()
     return {"deleted": deleted}
@@ -122,5 +129,11 @@ def delete_task(task_id: UUID, db: DbDep) -> None:
     task = db.get(Task, task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found")
+    # Keep assets: clear FK before deleting the task row
+    from db.models import Asset
+
+    db.query(Asset).filter(Asset.task_id == task_id).update(
+        {Asset.task_id: None}, synchronize_session=False
+    )
     db.delete(task)
     db.commit()

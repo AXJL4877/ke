@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import type { ModuleManifest } from "@/types/module";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Check, Copy, Loader2, Trash2 } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useState, type CSSProperties } from "react";
 
 type Task = {
@@ -76,6 +77,9 @@ export function TaskCard({
   const shellMeta = readShellMeta(task.result);
   const showMockBanner = Boolean(shellMeta?.mock);
   const showFastBanner = Boolean(shellMeta?.fast_completion) && !showMockBanner;
+  const assetLinks = Array.isArray(task.result?._assets)
+    ? (task.result!._assets as { id?: string; title?: string; kind?: string }[])
+    : [];
 
   return (
     <li
@@ -186,6 +190,22 @@ export function TaskCard({
           ) : null}
           {showResult && !Result ? (
             <DefaultResult result={task.result!} manifest={manifest!} />
+          ) : null}
+          {assetLinks.length > 0 ? (
+            <p className="text-sm text-muted-foreground">
+              已存入资产
+              {assetLinks[0]?.id ? (
+                <>
+                  {" · "}
+                  <Link
+                    href="/assets"
+                    className="text-primary underline-offset-4 hover:underline"
+                  >
+                    {assetLinks[0].title || "查看"}
+                  </Link>
+                </>
+              ) : null}
+            </p>
           ) : null}
           <p className="text-xs text-muted-foreground">
             {new Date(task.created_at).toLocaleString()}
