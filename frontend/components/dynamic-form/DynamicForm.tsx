@@ -1,16 +1,20 @@
 "use client";
 
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form";
 import type { FieldSpec, ModuleManifest } from "@/types/module";
 import { stripMockFieldsFromSchema } from "@/lib/anti-mock";
 import { cn } from "@/lib/utils";
+import { ChevronDown } from "lucide-react";
 
 type Props = {
   schema: ModuleManifest["input_schema"];
   onSubmit: (values: Record<string, unknown>) => Promise<void> | void;
   submitLabel?: string;
+  /** Compact sidebar: primary fields first, optional params behind a toggle */
+  progressive?: boolean;
 };
 
 const CONTROL =
@@ -42,15 +46,48 @@ function humanOptionLabel(opt: string | number | boolean): string {
   if (sep > 0 && sep < s.length - 3) {
     return s.slice(0, sep).trim();
   }
-  // bare technical ids look like deepseek-v4-flash-260425
   if (/^[a-z0-9]+(?:-[a-z0-9]+)+$/i.test(s) && s.length > 24) {
     return s.split("-").slice(0, 3).join("-");
   }
   return s;
 }
 
+function splitProgressive(
+  entries: [string, FieldSpec][]
+): { primary: [string, FieldSpec][]; more: [string, FieldSpec][] } {
+  const longFields = entries.filter(([, d]) => !isParamField(d));
+  const paramFields = entries.filter(([, d]) => isParamField(d));
+
+  // Required / main content fields stay visible
+  const primary = longFields.filter(
+    ([, d]) =>
+      d.required ||
+      d.format === "textarea" ||
+      d.type === "file" ||
+      d.type === "file[]" ||
+      d.type === "string"
+  );
+  const shown =
+    primary.length > 0
+      ? primary
+      : longFields.length > 0
+        ? [longFields[0]]
+        : entries.slice(0, 1);
+  const shownKeys = new Set(shown.map(([k]) => k));
+  const more = [
+    ...longFields.filter(([k]) => !shownKeys.has(k)),
+    ...paramFields.filter(([k]) => !shownKeys.has(k)),
+  ];
+  return { primary: shown, more };
+}
+
 /** Auto-render form from MODULE_SPEC.md §3 / §9 */
-export function DynamicForm({ schema, onSubmit, submitLabel = "Submit" }: Props) {
+export function DynamicForm({
+  schema,
+  onSubmit,
+  submitLabel = "Submit",
+  progressive = false,
+}: Props) {
   const safeSchema = stripMockFieldsFromSchema(schema);
   const {
     register,
@@ -59,17 +96,20 @@ export function DynamicForm({ schema, onSubmit, submitLabel = "Submit" }: Props)
   } = useForm({
     defaultValues: defaultsFromSchema(safeSchema),
   });
+  const [showMore, setShowMore] = useState(false);
 
-  const wide = hasTextarea(safeSchema);
+  const wide = hasTextarea(safeSchema) && !progressive;
   const entries = Object.entries(safeSchema);
   const longFields = entries.filter(([, d]) => !isParamField(d));
   const paramFields = entries.filter(([, d]) => isParamField(d));
+  const { primary, more } = progressive
+    ? splitProgressive(entries)
+    : { primary: longFields, more: paramFields };
 
   function renderField(key: string, def: FieldSpec) {
     const label = def.label || key;
     const err = errors[key]?.message as string | undefined;
     const required = Boolean(def.required);
-    // Do not pass description: product UI must not show schema helper clutter
     const desc = undefined;
 
     if (def.type === "enum" && def.options?.length) {
@@ -129,9 +169,9 @@ export function DynamicForm({ schema, onSubmit, submitLabel = "Submit" }: Props)
       return (
         <FormField key={key} label={label} description={desc} error={err}>
           <textarea
-            className={cn(CONTROL, "min-h-[120px] py-2")}
+            className={cn(CONTROL, progressive ? "min-h-[88px] py-2" : "min-h-[120px] py-2")}
             maxLength={def.max_length}
-            rows={6}
+            rows={progressive ? 4 : 6}
             {...register(key, { required })}
           />
         </FormField>
@@ -151,18 +191,49 @@ export function DynamicForm({ schema, onSubmit, submitLabel = "Submit" }: Props)
 
   return (
     <form
-      className={cn(wide ? "max-w-3xl" : "max-w-lg", "space-y-4")}
+      className={cn(
+        progressive ? "w-full max-w-none" : wide ? "max-w-3xl" : "max-w-lg",
+        "space-y-4"
+      )}
       onSubmit={handleSubmit(async (values) => {
         await onSubmit(values as Record<string, unknown>);
       })}
     >
-      {longFields.map(([key, def]) => renderField(key, def))}
-      {paramFields.length > 0 ? (
+      {primary.map(([key, def]) => renderField(key, def))}
+
+      {progressive && more.length > 0 ? (
+        <div className="space-y-3">
+          <button
+            type="button"
+            onClick={() => setShowMore((v) => !v)}
+            className="flex w-full items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <ChevronDown
+              className={cn(
+                "h-3.5 w-3.5 transition-transform",
+                showMore ? "rotate-0" : "-rotate-90"
+              )}
+            />
+            更多参数
+            <span className="tabular-nums text-muted-foreground/80">
+              ({more.length})
+            </span>
+          </button>
+          {showMore ? (
+            <div className="space-y-3 border-l-2 border-border/70 pl-3">
+              {more.map(([key, def]) => renderField(key, def))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {!progressive && paramFields.length > 0 ? (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {paramFields.map(([key, def]) => renderField(key, def))}
         </div>
       ) : null}
-      <Button type="submit" disabled={isSubmitting}>
+
+      <Button type="submit" disabled={isSubmitting} className="w-full">
         {isSubmitting ? "提交中…" : submitLabel}
       </Button>
     </form>
