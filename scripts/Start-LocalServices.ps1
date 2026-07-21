@@ -1,11 +1,12 @@
 # Silently start local HTTP backends declared by ke module integration contracts.
-# ASCII-only. Called from start.ps1; can also run alone:
+# ASCII-only. Called from start.ps1 (opt-in) or on-demand from task worker:
 #   .\scripts\Start-LocalServices.ps1
-# Skip: $env:KE_AUTO_START_LOCAL = "0"
+#   .\scripts\Start-LocalServices.ps1 -ServiceIds download -ServiceIds asr
 param(
   [string]$KeRoot = "",
   [int]$WaitSeconds = 90,
-  [switch]$NoWait
+  [switch]$NoWait,
+  [string[]]$ServiceIds = @()
 )
 
 $ErrorActionPreference = "Continue"
@@ -20,9 +21,9 @@ $PidFile = Join-Path $KeRoot "logs\pids.json"
 New-Item -ItemType Directory -Force -Path $LogsDir | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $KeRoot "logs") | Out-Null
 
-if ($env:KE_AUTO_START_LOCAL -eq "0" -or $env:KE_AUTO_START_LOCAL -eq "false") {
-  Write-Host "[ke-local] KE_AUTO_START_LOCAL=0, skip"
-  return @{ started = @(); skipped = @(); failed = @(); reused = @() }
+$filterIds = @()
+if ($ServiceIds -and $ServiceIds.Count -gt 0) {
+  $filterIds = @($ServiceIds | ForEach-Object { [string]$_ } | Where-Object { $_ })
 }
 
 function Test-HealthLabel {
@@ -342,7 +343,21 @@ function Collect-Services {
 }
 
 Write-Host "[ke-local] scanning integration contracts under backend\modules ..."
-$services = Collect-Services
+if ($filterIds.Count -gt 0) {
+  Write-Host "[ke-local] filter service_ids: $($filterIds -join ', ')"
+}
+$allServices = Collect-Services
+$services = $allServices
+if ($filterIds.Count -gt 0) {
+  $services = @{}
+  foreach ($sid in $filterIds) {
+    if ($allServices.ContainsKey($sid)) {
+      $services[$sid] = $allServices[$sid]
+    } else {
+      Write-Warning "[ke-local] service_id not found in contracts: $sid"
+    }
+  }
+}
 if ($services.Count -eq 0) {
   Write-Host "[ke-local] no contract sources/depends_on found (nothing to start)"
   return @{ started = @(); skipped = @(); failed = @(); reused = @() }

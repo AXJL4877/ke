@@ -3,8 +3,9 @@
 import { useUIStore } from "@/stores/useUIStore";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
+import { exitKeStudio } from "@/components/layout/KeLifecycle";
 import Link from "next/link";
-import { PanelLeft } from "lucide-react";
+import { LogOut, PanelLeft } from "lucide-react";
 
 export function Header() {
   const toggleSidebar = useUIStore((s) => s.toggleSidebar);
@@ -22,19 +23,31 @@ export function Header() {
         <PanelLeft className="h-4 w-4" />
         菜单
       </Button>
-      <div className="flex items-center gap-3 text-sm">
+      <div className="flex items-center gap-2 text-sm">
         {isAuthenticated ? (
-          <>
-            <span className="text-muted-foreground">{user?.username}</span>
-            <Button variant="outline" size="sm" type="button" onClick={logout}>
-              退出
-            </Button>
-          </>
+          <span className="hidden text-muted-foreground sm:inline">
+            {user?.username}
+          </span>
+        ) : null}
+        {isAuthenticated ? (
+          <Button variant="ghost" size="sm" type="button" onClick={logout}>
+            登出
+          </Button>
         ) : (
-          <Button asChild variant="outline" size="sm">
+          <Button asChild variant="ghost" size="sm">
             <Link href="/login">登录</Link>
           </Button>
         )}
+        <Button
+          variant="outline"
+          size="sm"
+          type="button"
+          className="gap-1.5"
+          onClick={() => void exitKeStudio()}
+        >
+          <LogOut className="h-3.5 w-3.5" />
+          退出 KE
+        </Button>
       </div>
     </header>
   );

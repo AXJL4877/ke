@@ -24,7 +24,7 @@ alwaysApply: true
 - 默认 `cookiesFromBrowser=edge`（易 DPAPI/锁库）；默认留空，走源模块 cookies.txt 回退
 - 在 `tasks.py` / loader 里写 `module_id` if-else
 - 声称「接入完成」但契约缺 `manual_acceptance` 或 verify 未跑
-- 要求用户手动先开下游：契约写好 `source`/`depends_on` + `manifest_path` 后，由 `start.ps1` → `Start-LocalServices.ps1` 静默拉起
+- 要求用户手动先开下游：契约写好后由任务执行前按需静默补拉（可选 `$env:KE_AUTO_START_LOCAL='1'` 开机全拉）
 - 把源机器的 `.venv` 当作模块源码复制进 `deps/`；ke 启动器会在启动前校验 `pyvenv.cfg` + `Scripts/python.exe` + 最小 Python 探针，损坏则安全删除并交给源启动脚本重建
 - **在产品表单上堆联调小字**（端口、`/xxx-api`、模型内部 id、「独立检验」、默认展开的 Cookie 技术说明）→ 见 `product-ui.mdc` / `AGENTS.md`
 

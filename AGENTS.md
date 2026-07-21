@@ -86,30 +86,34 @@
 | `backend/core/local_service_bridge.py` | 服务发现 + HTTP/multipart/二进制/轮询 |
 | `backend/modules/_template/` | 可复制模板（下划线开头，不加载） |
 | `scripts/verify-integration.ps1` | 一键契约检查 |
-| `scripts/Start-LocalServices.ps1` | 按契约静默拉起本机 HTTP 后端（start.ps1 自动调用） |
+| `scripts/Start-LocalServices.ps1` | 契约下游静默拉起（按需 / 手动 / 可选开机全拉） |
 | `docs/INTEGRATION_GUIDE.md` | 人读详解 |
 | `docs/ASSET_VAULT_DESIGN.md` | 资产部门设计与验收 |
 | `backend/core/assets.py` | 资产抽取 / 自动入库 |
 | `.cursor/rules/module-integration.mdc` | Cursor 始终生效规则 |
 
-## 一键启动下游
+## 启动下游（静默）
 
-`.\start.ps1` / `start.bat` 会：
+`Start-LocalServices.ps1`（开机可选 / 任务按需 / 手动）会：
 
 1. 扫描已接入模块的 `integration.contract.json`（`source` + `depends_on`）
 2. 用 `manifest_path` / 同级 `mo_kuai/<folder>` 找到源目录
 3. 启动前检查源目录内 `.venv`：必须同时有 `pyvenv.cfg`、`Scripts/python.exe` 且能运行最小 Python 探针；损坏则删除，让源启动脚本重建
 4. 读源 `module.json` → `local.start`，**静默**启动（`CreateNoWindow`，无黑窗；优先 `start_api` / `start.bat`，避免 `start_web` 弹浏览器；日志在 `logs/locals/`）
 5. 探活 `/health.service === label`，写 `ports.json` 由源脚本自己完成
-6. 再启 ke 前后端
 
-单独补拉：`.\scripts\Start-LocalServices.ps1`
+`.\start.ps1` / `start.bat` **默认只启 ke 前后端**，不在开机拉接入模块。
 
-跳过下游：`$env:KE_AUTO_START_LOCAL='0'`
+**默认**：`start.ps1` **不**在开机拉起接入模块（避免模块命令窗）；任务执行前由 `worker/tasks.py` **按需静默**补拉（`KE_ON_DEMAND_LOCAL=1`，默认开）。  
+**可选开机全拉**：`$env:KE_AUTO_START_LOCAL='1'`  
+**关闭最后一个 KE 浏览器标签或点「退出 KE」**会调用 `stop.ps1` 停掉壳 + 全部接入模块。  
+**只停壳、保留模块**：`$env:KE_STOP_LOCALS='0'`
+
+单独补拉：`.\scripts\Start-LocalServices.ps1` 或带 `-ServiceIds download`
 
 关闭 venv 自愈（仅排障）：`$env:KE_REPAIR_VENV='0'`
 
-> 若仍看到模块黑窗，确认是通过 `ke\start.ps1` 拉起的，而不是手动双击了模块目录里的 `start.bat`。
+> 若仍看到模块黑窗，确认是通过 `Start-LocalServices.ps1` / 任务按需拉起的，而不是手动双击了模块目录里的 `start.bat`。
 
 > 组装项目时不要复制 `.venv` / `node_modules`。虚拟环境不是源码，必须由目标机器按依赖清单创建；启动器自愈是第二道保险。
 

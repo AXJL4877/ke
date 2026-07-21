@@ -4,7 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from api.config import get_settings
 from api.middleware.cors import add_cors
 from api.middleware.error_handler import register_exception_handlers
-from api.routers import assets, auth, modules, tasks
+from api.routers import assets, auth, modules, system, tasks
 from core.logging import setup_logging
 from db.base import Base
 from db import models as _models  # noqa: F401 — register tables for create_all
@@ -22,6 +22,7 @@ app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(modules.router, prefix="/api/modules", tags=["modules"])
 app.include_router(tasks.router, prefix="/api/tasks", tags=["tasks"])
 app.include_router(assets.router, prefix="/api/assets", tags=["assets"])
+app.include_router(system.router, prefix="/api/system", tags=["system"])
 
 # 本地存储静态挂载（生产应走 CDN / 预签名 URL）
 local_path = Path(settings.storage_local_path)

@@ -63,6 +63,17 @@ def execute_task(task_id: str) -> dict:
         except ModuleLoadError as exc:
             raise StageError("load", str(exc), module_id) from exc
 
+        contract = loader.get_contract(task.module_id) if module_id else None
+        if contract:
+            try:
+                from core.local_service_launcher import ensure_local_services_for_contract
+
+                ensure_local_services_for_contract(contract)
+            except Exception:
+                logger.exception(
+                    "on-demand local start skipped for module %s", module_id
+                )
+
         stage = "run"
         t0 = time.perf_counter()
         try:
@@ -72,7 +83,6 @@ def execute_task(task_id: str) -> dict:
         duration_ms = int((time.perf_counter() - t0) * 1000)
 
         settings = get_settings()
-        contract = loader.get_contract(task.module_id) if module_id else None
         evidence_hints: list[str] = []
         if (
             contract

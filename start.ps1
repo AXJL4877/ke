@@ -91,18 +91,25 @@ try {
   Pop-Location
 }
 
-# --- Local HTTP backends from integration contracts (silent) ---
+# --- Local HTTP backends: default SKIP at boot (on-demand via worker) ---
+# Opt-in full start: $env:KE_AUTO_START_LOCAL='1'
+# This avoids popping module consoles when only the ke shell is needed.
 $StartLocals = Join-Path $Root "scripts\Start-LocalServices.ps1"
-if (Test-Path $StartLocals) {
-  Write-Host "[ke] ensuring local module backends (silent)..."
-  try {
-    & $StartLocals -KeRoot $Root -WaitSeconds 90
-  } catch {
-    Write-Warning "[ke] local service start had errors: $($_.Exception.Message)"
-    Write-Warning "[ke] continuing shell start; check logs\locals\"
+$autoLocals = $env:KE_AUTO_START_LOCAL -eq "1" -or $env:KE_AUTO_START_LOCAL -eq "true"
+if ($autoLocals) {
+  if (Test-Path $StartLocals) {
+    Write-Host "[ke] KE_AUTO_START_LOCAL=1, starting all contract backends (silent)..."
+    try {
+      & $StartLocals -KeRoot $Root -WaitSeconds 90
+    } catch {
+      Write-Warning "[ke] local service start had errors: $($_.Exception.Message)"
+      Write-Warning "[ke] continuing shell start; check logs\locals\"
+    }
+  } else {
+    Write-Host "[ke] scripts\Start-LocalServices.ps1 missing; skip local backends"
   }
 } else {
-  Write-Host "[ke] scripts\Start-LocalServices.ps1 missing; skip local backends"
+  Write-Host "[ke] skip local backends at startup (on-demand when tasks run; set KE_AUTO_START_LOCAL=1 to start all now)"
 }
 
 $pids = @{ backend = $null; frontend = $null; locals = @{} }
@@ -197,5 +204,6 @@ Write-Host "     backend:  http://127.0.0.1:8000"
 Write-Host "     docs:     http://127.0.0.1:8000/docs"
 Write-Host "     locals:   logs\locals\  (contract backends)"
 Write-Host "     logs:     $Logs"
-Write-Host "     stop:     .\stop.bat"
-Write-Host "     skip locals next time: `$env:KE_AUTO_START_LOCAL='0'"
+Write-Host "     stop:     .\stop.bat  (or close last KE browser tab / 退出 KE)"
+Write-Host "     boot all locals: `$env:KE_AUTO_START_LOCAL='1'"
+Write-Host "     manual locals: .\scripts\Start-LocalServices.ps1"

@@ -14,11 +14,12 @@
 ```
 
 - **静默**：backend / frontend **不弹命令窗**，日志写入 `logs/backend.log`、`logs/frontend.log`
-- **一键拉起接入模块后端**：扫描 `backend/modules/*/integration.contract.json` 的 `source` / `depends_on`，若未在线则**静默**启动源模块（日志 `logs/locals/`）
+- **默认不在开机拉接入模块**：避免启动 ke 时弹出模块命令窗；执行任务前按契约**按需静默**拉起（`CreateNoWindow`，日志 `logs/locals/`）
+- **可选开机全拉**：`$env:KE_AUTO_START_LOCAL='1'` 时 `start.ps1` 扫描契约并静默启动全部下游
+- **关闭即全停**：最后一个 KE 标签页关闭或右上角「退出 KE」→ `stop.ps1`（ke 前后端 + 契约模块端口）
 - **Python 环境自愈**：启动下游前校验其 `.venv`（`pyvenv.cfg` + `Scripts/python.exe` + 最小运行探针）；残缺/不可运行则删除，由模块启动脚本在本机重建
 - 健康检查通过后自动打开浏览器 `http://localhost:3000`
-- 停止：双击 `stop.bat` 或 `.\stop.ps1`（默认连带停掉 ke 拉起的本地后端；只停壳：`$env:KE_STOP_LOCALS='0'`）
-- 跳过拉起下游：`$env:KE_AUTO_START_LOCAL='0'`
+- 停止：双击 `stop.bat`、点浏览器「退出 KE」、或关闭最后一个 KE 标签页（默认停壳 + 全部接入模块；只停壳：`$env:KE_STOP_LOCALS='0'`）
 - 关闭 `.venv` 自愈（仅排障）：`$env:KE_REPAIR_VENV='0'`
 
 排障：看 `logs/`；启动失败时 `start.ps1` 会打印日志末尾。
@@ -37,7 +38,7 @@ ke/
 ├── scripts/verify-integration.ps1
 ├── scripts/resolve_catalog.py       # 查目录 / 展开依赖 / 打印 clone 命令
 ├── scripts/Start-LocalServices.ps1  # 契约下游静默拉起
-├── start.bat / start.ps1            # 壳 + 下游一键静默
+├── start.bat / start.ps1            # 壳静默启动（下游默认按需）
 ├── stop.bat / stop.ps1
 ├── logs/                            # 含 locals/
 ├── frontend/
