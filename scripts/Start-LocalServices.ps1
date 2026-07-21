@@ -1,7 +1,8 @@
 # Silently start local HTTP backends declared by ke module integration contracts.
-# ASCII-only. Called from start.ps1 (opt-in) or on-demand from task worker:
+# ASCII-only. Called from start.ps1 (default) or on-demand from task worker:
 #   .\scripts\Start-LocalServices.ps1
 #   .\scripts\Start-LocalServices.ps1 -ServiceIds download -ServiceIds asr
+# Skip all: $env:KE_AUTO_START_LOCAL='0' (checked in start.ps1)
 param(
   [string]$KeRoot = "",
   [int]$WaitSeconds = 90,
@@ -242,41 +243,44 @@ function Start-ServiceSilent {
     [string]$ScriptPath,
     [string]$LogPath
   )
-  # True no-console start: CreateNoWindow (WindowStyle Hidden alone still lets
-  # child node/python allocate a visible cmd window).
+  # Launch powershell.exe itself with CreateNoWindow (not cmd -> powershell).
+  # cmd wrappers let child powershell/node allocate a NEW visible console.
+  # KE_SILENT=1 tells module start scripts to skip pause and silent-spawn children.
   $errLog = $LogPath + ".err"
   "" | Set-Content -Path $LogPath -Encoding UTF8
   "" | Set-Content -Path $errLog -Encoding UTF8
 
+  $qFolder = $Folder.Replace("'", "''")
+  $qScript = $ScriptPath.Replace("'", "''")
+  $qLog = $LogPath.Replace("'", "''")
+  $qErr = $errLog.Replace("'", "''")
+  $ext = [System.IO.Path]::GetExtension($ScriptPath).ToLowerInvariant()
+
+  if ($ext -eq ".ps1") {
+    $inner = "& { `$env:KE_SILENT='1'; Set-Location -LiteralPath '$qFolder'; & '$qScript' *>> '$qLog' 2>> '$qErr' }"
+  } else {
+    $inner = "& { `$env:KE_SILENT='1'; Set-Location -LiteralPath '$qFolder'; cmd.exe /c `"`"$qScript`"`" *>> '$qLog' 2>> '$qErr' }"
+  }
+
   $psi = New-Object System.Diagnostics.ProcessStartInfo
+  $psi.FileName = "powershell.exe"
+  $psi.Arguments = "-NoProfile -ExecutionPolicy Bypass -Command `"$inner`""
   $psi.WorkingDirectory = $Folder
   $psi.UseShellExecute = $false
   $psi.CreateNoWindow = $true
   $psi.RedirectStandardInput = $false
   $psi.RedirectStandardOutput = $false
   $psi.RedirectStandardError = $false
-
-  $ext = [System.IO.Path]::GetExtension($ScriptPath).ToLowerInvariant()
-  # Quote paths; append stdout/stderr to ke logs (avoids pipe deadlock on long-lived servers).
-  $qFolder = $Folder.Replace('"', '""')
-  $qScript = $ScriptPath.Replace('"', '""')
-  $qLog = $LogPath.Replace('"', '""')
-  $qErr = $errLog.Replace('"', '""')
-
-  if ($ext -eq ".ps1") {
-    $psi.FileName = "cmd.exe"
-    # Wrap powershell so >> is handled by cmd (CreateNoWindow path has no shell redirect otherwise).
-    $psi.Arguments = "/c powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$qScript`" >>`"$qLog`" 2>>`"$qErr`""
+  if ($psi.EnvironmentVariables.ContainsKey("KE_SILENT")) {
+    $psi.EnvironmentVariables["KE_SILENT"] = "1"
   } else {
-    $psi.FileName = "cmd.exe"
-    # /c run bat; >> logs so node/uvicorn grandchildren inherit no interactive console.
-    $psi.Arguments = "/c `"`"$qScript`" >>`"$qLog`" 2>>`"$qErr`"`""
+    $psi.EnvironmentVariables.Add("KE_SILENT", "1")
   }
 
   $proc = New-Object System.Diagnostics.Process
   $proc.StartInfo = $psi
   [void]$proc.Start()
-  Write-Host "[ke-local] spawned pid=$($proc.Id) CreateNoWindow=1 ($ServiceId)"
+  Write-Host "[ke-local] spawned pid=$($proc.Id) CreateNoWindow=1 KE_SILENT=1 ($ServiceId)"
   return $proc
 }
 

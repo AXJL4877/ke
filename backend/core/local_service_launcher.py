@@ -1,8 +1,8 @@
 """
 On-demand local HTTP module launcher.
 
-ke 默认不在 start.ps1 时拉起全部契约下游；执行任务前按模块契约
-只启动需要的 service_id（仍走 Start-LocalServices.ps1 静默逻辑）。
+ke start.ps1 默认静默拉起全部契约下游；执行任务前仍可按模块契约
+只补启需要的 service_id（仍走 Start-LocalServices.ps1 + KE_SILENT）。
 """
 from __future__ import annotations
 

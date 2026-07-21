@@ -49,9 +49,9 @@ export function TaskResultStage({
   if (!task) {
     return (
       <div className="flex min-h-[24rem] flex-col items-center justify-center rounded-xl border border-dashed border-border/70 bg-muted/10 px-6 text-center">
-        <p className="text-base font-medium text-foreground/80">任务成果</p>
+        <p className="text-base font-medium text-foreground/80">输出</p>
         <p className="mt-2 max-w-sm text-sm text-muted-foreground">
-          运行后完整结果会显示在这里。进度与队列在上方，参数在右侧。
+          点击右上角「输入」填写参数并运行，结果会显示在这里。
         </p>
       </div>
     );
@@ -123,10 +123,7 @@ export function TaskResultStage({
           <div className="flex flex-1 flex-col items-center justify-center py-10 text-center">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
             <p className="mt-4 text-sm text-muted-foreground">
-              任务进行中，成果就绪后显示在此
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground/80">
-              可展开上方进度条查看阶段与队列
+              处理中，完成后显示在此
             </p>
           </div>
         ) : null}

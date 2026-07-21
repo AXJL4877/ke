@@ -99,7 +99,7 @@ Cookie：默认 **不要** 填 `cookiesFromBrowser=edge`；留空走源模块 `c
 # 人工项也要过
 .\scripts\verify-integration.ps1 -StrictManual
 
-# 下游：默认任务执行前按需静默拉起；开机全拉用 KE_AUTO_START_LOCAL=1；也可单独：
+# 下游：start.ps1 默认按契约静默拉起（无黑窗）；也可单独：
 .\scripts\Start-LocalServices.ps1
 
 # 下游已启动时：直连探活
@@ -113,7 +113,7 @@ $env:PYTHONPATH="."
 python -m pytest tests/test_integration_gate.py -q
 ```
 
-> **不要**再要求用户「先手动开 transcript/download」。契约写好 `source`/`depends_on` + 可解析的 `manifest_path` 后，由 ke 在任务执行前按需静默拉起（或 `KE_AUTO_START_LOCAL=1` 开机全拉）。
+> **不要**再要求用户「先手动开 transcript/download」。契约写好 `source`/`depends_on` + 可解析的 `manifest_path` 后，由 ke 一键静默拉起（无命令窗）。
 
 ## 6. 门禁行为
 

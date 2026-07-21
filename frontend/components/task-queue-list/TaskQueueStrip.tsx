@@ -89,7 +89,7 @@ export function TaskQueueStrip({
   if (tasks.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-border/70 bg-muted/15 px-4 py-3 text-sm text-muted-foreground">
-        暂无任务。在右侧填写参数并运行后，进度会出现在这里。
+        暂无任务。点击「输入」填写参数并运行。
       </div>
     );
   }

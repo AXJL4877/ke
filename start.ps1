@@ -91,14 +91,13 @@ try {
   Pop-Location
 }
 
-# --- Local HTTP backends: default SKIP at boot (on-demand via worker) ---
-# Opt-in full start: $env:KE_AUTO_START_LOCAL='1'
-# This avoids popping module consoles when only the ke shell is needed.
+# --- Local HTTP backends: default silent start all contract modules ---
+# Skip: $env:KE_AUTO_START_LOCAL='0'  (tasks can still on-demand start)
 $StartLocals = Join-Path $Root "scripts\Start-LocalServices.ps1"
-$autoLocals = $env:KE_AUTO_START_LOCAL -eq "1" -or $env:KE_AUTO_START_LOCAL -eq "true"
-if ($autoLocals) {
+$skipLocals = $env:KE_AUTO_START_LOCAL -eq "0" -or $env:KE_AUTO_START_LOCAL -eq "false"
+if (-not $skipLocals) {
   if (Test-Path $StartLocals) {
-    Write-Host "[ke] KE_AUTO_START_LOCAL=1, starting all contract backends (silent)..."
+    Write-Host "[ke] starting all contract backends (silent, no console windows)..."
     try {
       & $StartLocals -KeRoot $Root -WaitSeconds 90
     } catch {
@@ -109,7 +108,7 @@ if ($autoLocals) {
     Write-Host "[ke] scripts\Start-LocalServices.ps1 missing; skip local backends"
   }
 } else {
-  Write-Host "[ke] skip local backends at startup (on-demand when tasks run; set KE_AUTO_START_LOCAL=1 to start all now)"
+  Write-Host "[ke] KE_AUTO_START_LOCAL=0, skip local backends at startup"
 }
 
 $pids = @{ backend = $null; frontend = $null; locals = @{} }
@@ -138,12 +137,15 @@ Set-Location -LiteralPath '$Backend'
 `$pyArgs = @($pyArgLit)
 & '$PythonExe' @pyArgs -m uvicorn api.main:app --reload --host 127.0.0.1 --port 8000 *>> '$BackendLog' 2>&1
 "@
-  $be = Start-Process powershell -WindowStyle Hidden -PassThru -ArgumentList @(
-    "-NoProfile",
-    "-ExecutionPolicy", "Bypass",
-    "-Command", $backendCmd
-  )
-  $pids.backend = $be.Id
+  $psiBe = New-Object System.Diagnostics.ProcessStartInfo
+  $psiBe.FileName = "powershell.exe"
+  $psiBe.Arguments = "-NoProfile -ExecutionPolicy Bypass -Command `"$backendCmd`""
+  $psiBe.UseShellExecute = $false
+  $psiBe.CreateNoWindow = $true
+  $beProc = New-Object System.Diagnostics.Process
+  $beProc.StartInfo = $psiBe
+  [void]$beProc.Start()
+  $pids.backend = $beProc.Id
 }
 
 $ok = $false
@@ -172,12 +174,15 @@ if (Test-PortListening 3000) {
 Set-Location '$Frontend'
 npm run dev *>> '$FrontendLog' 2>&1
 "@
-  $fe = Start-Process powershell -WindowStyle Hidden -PassThru -ArgumentList @(
-    "-NoProfile",
-    "-ExecutionPolicy", "Bypass",
-    "-Command", $frontendCmd
-  )
-  $pids.frontend = $fe.Id
+  $psiFe = New-Object System.Diagnostics.ProcessStartInfo
+  $psiFe.FileName = "powershell.exe"
+  $psiFe.Arguments = "-NoProfile -ExecutionPolicy Bypass -Command `"$frontendCmd`""
+  $psiFe.UseShellExecute = $false
+  $psiFe.CreateNoWindow = $true
+  $feProc = New-Object System.Diagnostics.Process
+  $feProc.StartInfo = $psiFe
+  [void]$feProc.Start()
+  $pids.frontend = $feProc.Id
 }
 
 $feOk = $false
@@ -205,5 +210,5 @@ Write-Host "     docs:     http://127.0.0.1:8000/docs"
 Write-Host "     locals:   logs\locals\  (contract backends)"
 Write-Host "     logs:     $Logs"
 Write-Host "     stop:     .\stop.bat  (or close last KE browser tab / 退出 KE)"
-Write-Host "     boot all locals: `$env:KE_AUTO_START_LOCAL='1'"
+Write-Host "     skip locals at boot: `$env:KE_AUTO_START_LOCAL='0'"
 Write-Host "     manual locals: .\scripts\Start-LocalServices.ps1"

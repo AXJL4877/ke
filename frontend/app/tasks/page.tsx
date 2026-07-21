@@ -13,6 +13,7 @@ import {
   startTransition,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
@@ -22,7 +23,13 @@ import {
 import { stripMockFieldsFromSchema } from "@/lib/anti-mock";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, PanelRight } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Plus, RefreshCw } from "lucide-react";
 
 const ACTIVE = new Set(["pending", "processing"]);
 
@@ -36,9 +43,9 @@ function TasksContent() {
   const mod = modules?.find((m) => m.id === moduleId);
   const [ui, setUi] = useState<ModuleUI | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [submitOk, setSubmitOk] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [paramsOpen, setParamsOpen] = useState(true);
+  const [paramsOpen, setParamsOpen] = useState(false);
+  const autoOpenedFor = useRef<string | null>(null);
 
   const safeSchema = useMemo(
     () => (mod ? stripMockFieldsFromSchema(mod.input_schema) : {}),
@@ -81,6 +88,15 @@ function TasksContent() {
     setSelectedId(preferred?.id ?? null);
   }, [tasks, selectedId]);
 
+  // Open input once when landing on a module with an empty queue
+  useEffect(() => {
+    if (!moduleId || !mod || tasksLoading) return;
+    if (tasks.length > 0) return;
+    if (autoOpenedFor.current === moduleId) return;
+    autoOpenedFor.current = moduleId;
+    setParamsOpen(true);
+  }, [moduleId, mod, tasks.length, tasksLoading]);
+
   function selectModule(id: string) {
     startTransition(() => {
       router.push(`/tasks?module=${encodeURIComponent(id)}`);
@@ -90,7 +106,6 @@ function TasksContent() {
   async function submit(values: Record<string, unknown>) {
     if (!mod) return;
     setSubmitError(null);
-    setSubmitOk(false);
     try {
       const created = await apiClient.post<QueueTask>(
         "/api/tasks",
@@ -100,10 +115,9 @@ function TasksContent() {
         },
         { auth: false }
       );
-      setSubmitOk(true);
       if (created?.id) setSelectedId(created.id);
+      setParamsOpen(false);
       await queryClient.invalidateQueries({ queryKey: ["tasks"] });
-      window.setTimeout(() => setSubmitOk(false), 2500);
     } catch (err) {
       const msg =
         err instanceof ApiError
@@ -122,24 +136,35 @@ function TasksContent() {
   );
 
   return (
-    <div className="mx-auto flex max-w-7xl flex-col gap-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">任务</h1>
-          <p className="text-sm text-muted-foreground">
-            上方看进度，中间看成果，右侧填参数。
-          </p>
+    <div className="mx-auto flex max-w-5xl flex-col gap-3">
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-xl font-semibold tracking-tight">
+          {mod?.name ?? "任务"}
+        </h1>
+        <div className="flex items-center gap-1.5">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-muted-foreground"
+            disabled={reload.isPending}
+            onClick={() => reload.mutate()}
+            aria-label="刷新"
+          >
+            <RefreshCw
+              className={cn("h-4 w-4", reload.isPending && "animate-spin")}
+            />
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            className="h-8 gap-1.5"
+            onClick={() => setParamsOpen(true)}
+          >
+            <Plus className="h-4 w-4" />
+            输入
+          </Button>
         </div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          disabled={reload.isPending}
-          onClick={() => reload.mutate()}
-          className="text-muted-foreground"
-        >
-          {reload.isPending ? "刷新中…" : "刷新"}
-        </Button>
       </div>
 
       <TaskProgressHeader
@@ -152,123 +177,89 @@ function TasksContent() {
         tasksLoading={tasksLoading}
       />
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(260px,320px)]">
-        <TaskResultStage task={selectedTask} manifest={selectedManifest} />
+      <TaskResultStage task={selectedTask} manifest={selectedManifest} />
 
-        <aside className="order-first space-y-3 lg:order-none lg:sticky lg:top-20 lg:self-start">
-          <button
-            type="button"
-            className="flex w-full items-center justify-between rounded-lg border border-border/80 bg-card/80 px-3 py-2 text-sm font-medium lg:cursor-default"
-            onClick={() => {
-              if (window.matchMedia("(max-width: 1023px)").matches) {
-                setParamsOpen((v) => !v);
-              }
-            }}
-          >
-            <span className="flex items-center gap-2">
-              <PanelRight className="h-4 w-4 text-muted-foreground" />
-              参数
-              {mod ? (
-                <span className="font-normal text-muted-foreground">
-                  · {mod.name}
-                </span>
-              ) : null}
-            </span>
-            <ChevronDown
-              className={cn(
-                "h-4 w-4 text-muted-foreground transition-transform lg:hidden",
-                paramsOpen ? "rotate-0" : "-rotate-90"
-              )}
-            />
-          </button>
+      <Dialog open={paramsOpen} onOpenChange={setParamsOpen}>
+        <DialogContent className="max-h-[85vh] max-w-md overflow-y-auto p-5 sm:max-w-lg">
+          <DialogHeader className="mb-3">
+            <DialogTitle>任务输入</DialogTitle>
+          </DialogHeader>
 
-          <div
-            className={cn(
-              "space-y-4 rounded-xl border border-border/80 bg-card p-4 shadow-[0_8px_24px_-18px_hsl(215_30%_20%/0.18)]",
-              !paramsOpen && "hidden lg:block"
+          <section className="mb-4 space-y-2">
+            <h2 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              模块
+            </h2>
+            {modulesLoading ? (
+              <p className="text-sm text-muted-foreground">加载中…</p>
+            ) : (
+              <div className="flex max-h-28 flex-col gap-0.5 overflow-y-auto rounded-md border border-border/60 p-1">
+                {(modules ?? []).map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => selectModule(m.id)}
+                    className={cn(
+                      "rounded-md px-2.5 py-1.5 text-left text-sm transition",
+                      moduleId === m.id
+                        ? "bg-primary/10 font-medium text-primary"
+                        : "text-foreground/80 hover:bg-accent/70"
+                    )}
+                  >
+                    {m.name}
+                  </button>
+                ))}
+                {(modules?.length ?? 0) === 0 && (
+                  <span className="px-2 py-1.5 text-sm text-muted-foreground">
+                    暂无可用模块
+                  </span>
+                )}
+              </div>
             )}
-          >
-            <section className="space-y-2">
-              <h2 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                模块
-              </h2>
-              {modulesLoading ? (
-                <p className="text-sm text-muted-foreground">加载中…</p>
-              ) : (
-                <div className="flex max-h-36 flex-col gap-0.5 overflow-y-auto">
-                  {(modules ?? []).map((m) => (
-                    <button
-                      key={m.id}
-                      type="button"
-                      onClick={() => selectModule(m.id)}
-                      className={cn(
-                        "rounded-md px-2.5 py-1.5 text-left text-sm transition",
-                        moduleId === m.id
-                          ? "bg-primary/10 font-medium text-primary"
-                          : "text-foreground/80 hover:bg-accent/70"
-                      )}
-                    >
-                      {m.name}
-                    </button>
-                  ))}
-                  {(modules?.length ?? 0) === 0 && (
-                    <span className="text-sm text-muted-foreground">
-                      暂无可用模块
-                    </span>
-                  )}
+          </section>
+
+          {mod ? (
+            <section className="space-y-3 border-t border-border/60 pt-3">
+              {submitError ? (
+                <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                  <div className="font-semibold">提交失败</div>
+                  <p className="mt-1 whitespace-pre-wrap text-xs">
+                    {submitError}
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-2 h-7"
+                    onClick={() => setSubmitError(null)}
+                  >
+                    关闭
+                  </Button>
                 </div>
+              ) : null}
+
+              {Form ? (
+                <Form
+                  schema={safeSchema}
+                  manifest={mod}
+                  onSubmit={submit}
+                  submitLabel="运行"
+                />
+              ) : (
+                <DynamicForm
+                  schema={safeSchema}
+                  onSubmit={submit}
+                  submitLabel="运行"
+                  progressive
+                />
               )}
             </section>
-
-            {mod ? (
-              <section className="space-y-3 border-t border-border/60 pt-3">
-                {submitError ? (
-                  <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-                    <div className="font-semibold">提交失败</div>
-                    <p className="mt-1 whitespace-pre-wrap text-xs">
-                      {submitError}
-                    </p>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="mt-2 h-7"
-                      onClick={() => setSubmitError(null)}
-                    >
-                      关闭
-                    </Button>
-                  </div>
-                ) : null}
-                {submitOk ? (
-                  <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-800">
-                    已提交，成果将出现在中间。
-                  </div>
-                ) : null}
-
-                {Form ? (
-                  <Form
-                    schema={safeSchema}
-                    manifest={mod}
-                    onSubmit={submit}
-                    submitLabel="运行"
-                  />
-                ) : (
-                  <DynamicForm
-                    schema={safeSchema}
-                    onSubmit={submit}
-                    submitLabel="运行"
-                    progressive
-                  />
-                )}
-              </section>
-            ) : (
-              <p className="border-t border-border/60 pt-3 text-sm text-muted-foreground">
-                选择模块后填写参数。
-              </p>
-            )}
-          </div>
-        </aside>
-      </div>
+          ) : (
+            <p className="border-t border-border/60 pt-3 text-sm text-muted-foreground">
+              选择模块后填写参数。
+            </p>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
