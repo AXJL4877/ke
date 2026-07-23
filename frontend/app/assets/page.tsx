@@ -121,12 +121,7 @@ export default function AssetsPage() {
   return (
     <div className="mx-auto grid max-w-6xl gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
       <div className="space-y-6">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">资产</h1>
-          <p className="text-sm text-muted-foreground">
-            任务产出会自动收纳到这里，方便查找和复用。
-          </p>
-        </div>
+        <h1 className="text-2xl font-semibold tracking-tight">资产</h1>
 
         <div className="flex flex-wrap gap-2">
           <input
@@ -177,6 +172,7 @@ export default function AssetsPage() {
             <li key={a.id}>
               <button
                 type="button"
+                data-testid={`ke-asset-${a.id}`}
                 onClick={() => setSelectedId(a.id)}
                 className={cn(
                   "w-full rounded-md border border-border/70 px-3 py-2.5 text-left transition-colors",
@@ -207,7 +203,7 @@ export default function AssetsPage() {
           ))}
           {!isLoading && assets && assets.length === 0 ? (
             <li className="py-8 text-center text-sm text-muted-foreground">
-              还没有资产。完成一次任务后会自动出现在这里。
+              暂无资产
             </li>
           ) : null}
         </ul>
@@ -215,7 +211,7 @@ export default function AssetsPage() {
 
       <div className="min-h-[16rem] rounded-lg border border-border/70 bg-[hsl(var(--card)/0.5)] p-5">
         {!selectedId ? (
-          <p className="text-sm text-muted-foreground">选择左侧一条资产查看详情。</p>
+          <p className="text-sm text-muted-foreground">选择一条资产</p>
         ) : detail.isLoading ? (
           <p className="text-sm text-muted-foreground">加载中…</p>
         ) : selected ? (

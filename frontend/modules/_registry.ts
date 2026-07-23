@@ -7,14 +7,17 @@ import type { ModuleManifest } from "@/types/module";
 const LOCAL_MANIFESTS: ModuleManifest[] = [];
 
 export function mergeModuleRegistry(
-  remote: ModuleManifest[] = []
+  remote: ModuleManifest[] = [],
+  opts?: { includeHidden?: boolean }
 ): ModuleManifest[] {
   const map = new Map<string, ModuleManifest>();
   for (const m of LOCAL_MANIFESTS) map.set(m.id, m);
   for (const m of remote) map.set(m.id, m);
-  return Array.from(map.values())
-    .filter((m) => !m.ui_hint?.hidden)
-    .sort((a, b) => a.name.localeCompare(b.name));
+  let list = Array.from(map.values());
+  if (!opts?.includeHidden) {
+    list = list.filter((m) => !m.ui_hint?.hidden);
+  }
+  return list.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export function getLocalModules(): ModuleManifest[] {

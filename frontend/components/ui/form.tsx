@@ -18,26 +18,27 @@ Label.displayName = "Label";
 
 export function FormField({
   label,
-  description,
+  htmlFor,
   error,
   children,
 }: {
   label: string;
+  /** Associates label with control for a11y / agent snapshots */
+  htmlFor?: string;
+  /** @deprecated Ignored in product UI — do not show helper paragraphs */
   description?: string;
   error?: string;
   children: React.ReactNode;
 }) {
-  // Product UI: do not render schema description as muted helper text.
-  // Optional short hint may go on the label title attribute only.
-  const tip =
-    description && description.length > 0 && description.length <= 40
-      ? description
-      : undefined;
   return (
     <div className="space-y-1.5">
-      <Label title={tip}>{label}</Label>
+      <Label htmlFor={htmlFor}>{label}</Label>
       {children}
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      {error ? (
+        <p className="text-xs text-destructive" role="alert">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }

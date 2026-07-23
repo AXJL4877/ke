@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useModules } from "@/hooks/useModules";
+import { AGENT_TESTID } from "@/lib/agent-macros";
 import { cn } from "@/lib/utils";
 import { Suspense } from "react";
 
@@ -21,7 +22,7 @@ function ModuleNavInner() {
   }
 
   return (
-    <ul className="flex flex-col gap-0.5">
+    <ul className="flex flex-col gap-0.5" aria-label="模块列表">
       {modules.map((m) => {
         const href = `/tasks?module=${encodeURIComponent(m.id)}`;
         const active = pathname.startsWith("/tasks") && activeId === m.id;
@@ -29,13 +30,14 @@ function ModuleNavInner() {
           <li key={m.id}>
             <Link
               href={href}
+              data-testid={AGENT_TESTID.moduleNav(m.id)}
               className={cn(
                 "block rounded-md px-3 py-1.5 text-sm transition-colors",
                 active
                   ? "bg-primary/10 font-medium text-primary"
                   : "text-foreground/80 hover:bg-accent/80 hover:text-foreground"
               )}
-              title={m.description}
+              title={m.name}
             >
               {m.name}
             </Link>

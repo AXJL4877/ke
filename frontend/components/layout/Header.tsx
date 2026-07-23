@@ -19,6 +19,8 @@ export function Header() {
         onClick={toggleSidebar}
         type="button"
         className="gap-1.5"
+        aria-label="菜单"
+        data-testid="ke-header-menu"
       >
         <PanelLeft className="h-4 w-4" />
         菜单
@@ -30,12 +32,20 @@ export function Header() {
           </span>
         ) : null}
         {isAuthenticated ? (
-          <Button variant="ghost" size="sm" type="button" onClick={logout}>
+          <Button
+            variant="ghost"
+            size="sm"
+            type="button"
+            onClick={logout}
+            data-testid="ke-header-logout"
+          >
             登出
           </Button>
         ) : (
           <Button asChild variant="ghost" size="sm">
-            <Link href="/login">登录</Link>
+            <Link href="/login" data-testid="ke-header-login">
+              登录
+            </Link>
           </Button>
         )}
         <Button
@@ -43,6 +53,8 @@ export function Header() {
           size="sm"
           type="button"
           className="gap-1.5"
+          data-testid="ke-header-exit"
+          aria-label="退出 KE"
           onClick={() => void exitKeStudio()}
         >
           <LogOut className="h-3.5 w-3.5" />

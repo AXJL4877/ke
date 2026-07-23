@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ModuleNav } from "./ModuleNav";
+import { AGENT_TESTID } from "@/lib/agent-macros";
 import { cn } from "@/lib/utils";
 
 export function Sidebar({ collapsed }: { collapsed: boolean }) {
@@ -35,14 +36,30 @@ export function Sidebar({ collapsed }: { collapsed: boolean }) {
           )}
         </div>
       </div>
-      <nav className="flex flex-col gap-1 p-2 text-sm">
-        <Link href="/" className={linkClass("/")}>
+      <nav
+        className="flex flex-col gap-1 p-2 text-sm"
+        aria-label="主导航"
+        data-testid="ke-nav"
+      >
+        <Link
+          href="/"
+          data-testid={AGENT_TESTID.navHome}
+          className={linkClass("/")}
+        >
           {collapsed ? "⌂" : "工作台"}
         </Link>
-        <Link href="/tasks" className={linkClass("/tasks")}>
+        <Link
+          href="/tasks"
+          data-testid={AGENT_TESTID.navTasks}
+          className={linkClass("/tasks")}
+        >
           {collapsed ? "☰" : "任务"}
         </Link>
-        <Link href="/assets" className={linkClass("/assets")}>
+        <Link
+          href="/assets"
+          data-testid={AGENT_TESTID.navAssets}
+          className={linkClass("/assets")}
+        >
           {collapsed ? "◇" : "资产"}
         </Link>
       </nav>

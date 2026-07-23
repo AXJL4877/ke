@@ -15,6 +15,8 @@
 
 工作台给最终用户用，**不是**联调控制台。接入模块时能力要接全，但**不要把接线说明画在表单上**。
 
+表单只呈现：**短 label + 必填输入 +（折叠）可选项**。不要解释性段落。
+
 ### 禁止出现在用户可见 UI
 
 | 禁止 | 示例 |
@@ -23,22 +25,39 @@
 | 开发黑话 | 「独立检验」「对应模块」「ports.json」「handler」「must_keep」 |
 | 模型内部 ID 当主文案 | `deepseek-v4-flash-260425`、`当前：xxx-id` |
 | 默认展开的联调块 | 「Cookie 管理（B 站 412…）」整段技术说明 |
+| schema `description` 小字 | 一律不渲染；需要时只写进 AGENTS / capabilities |
 
 这些内容只写在：`capabilities[].desc`、源模块 `AGENTS.md`、`integration.contract.json`、开发文档。
 
 ### 表单怎么写
 
 - `label`：短、口语（如「视频链接」「总结模型」）
-- `description`：**默认不要写**；壳层 DynamicForm / FormField **不展示** description 小字
+- `description`：**默认不要写**；壳层 DynamicForm / FormField **不展示** description
+- 必填主区可见；非必填 / 枚举 / 数字进「更多」
 - `enum` 选项：给人看的名字；需要底层 id 时用「可读名」作展示，id 放 value（或可读名前缀），禁止选项旁再跟一行 `当前：模型id`
 - Cookie / 登录类：若必须有 UI，用折叠「高级」+ 用户话（「登录网站并保存」），禁止写代理路径与端口
 - 自定义 `Form.tsx` 同样遵守；宁可用自动 DynamicForm，也不要为「提示开发」加一堆 muted 小字
 
 ### 壳层已做
 
-- `FormField` / `DynamicForm`：不渲染 schema `description`
+- `FormField` / `DynamicForm`：不渲染 schema `description`；控件有 `id` + `data-testid=ke-field-*`
 - 任务页：模块标题下不展示 `module.description`
 - 假数据：仅结果卡软提示，不拦截
+
+## 浏览器智能体 · 点击验收（新功能自测）
+
+新模块/改功能后，优先让 Cursor **模拟人类点击**跑通同一条 UI 路径，而不是你手点一遍。
+
+1. 启动 ke，打开工作台
+2. （可选）`GET http://127.0.0.1:8000/api/agent/playbook` 读 testid / 深链 / 宏 / 字段
+3. 打开 `/tasks?module=<id>&open=1`，或带宏 `/tasks?module=echo&macro=echo-hello`
+4. snapshot 定位：`ke-field-*` → `ke-task-submit`（或 `ke-macro-*`）
+5. 断言 `ke-task-status` 为 `done`，并查看 `ke-task-result`
+
+稳定选择器约定：`ke-{区域}-{对象}`（如 `ke-nav-home`、`ke-module-nav-echo`、`ke-task-submit`）。  
+`echo` 默认 `ui_hint.hidden`，导航不显示，深链仍可用。
+
+HTTP `POST /api/tasks` 与点击提交同一后端；**验收以点击跑通为准**。catalog `recipes` 只表示该装哪些模块，不是一键运行时。
 
 ## 资产部门（一期）
 
@@ -90,6 +109,7 @@
 | `docs/INTEGRATION_GUIDE.md` | 人读详解 |
 | `docs/ASSET_VAULT_DESIGN.md` | 资产部门设计与验收 |
 | `backend/core/assets.py` | 资产抽取 / 自动入库 |
+| `GET /api/agent/playbook` | 浏览器智能体：testid / 深链 / 宏 / 字段地图 |
 | `.cursor/rules/module-integration.mdc` | Cursor 始终生效规则 |
 
 ## 一键启动下游（静默无黑窗）
@@ -123,7 +143,8 @@
 - 直连 / 过代理 verify 中 auto 项全绿；manual 项有 `manual_acceptance`
 - 任务结果含真实 `provenance`，无 mock 文案；异步含 `job_id`/`archive_id`
 - **禁止**用秒级假成功冒充下载/转写/TTS/渲染
-- **产品 UI 干净**：无端口/代理路径/模型内部 id/默认展开的联调 Cookie 技术说明
+- **产品 UI 干净**：无端口/代理路径/模型内部 id/默认展开的联调 Cookie 技术说明；表单仅短 label + 必填/可选
+- 新功能可用 Cursor 按 `AGENTS.md`「浏览器智能体 · 点击验收」跑通 UI（`data-testid` + `/api/agent/playbook`）
 
 ## 反例（联调已踩）
 

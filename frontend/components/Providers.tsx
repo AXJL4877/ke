@@ -22,7 +22,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
           )}
         >
           <Header />
-          <main className="page-fade flex-1 p-6 md:p-8">{children}</main>
+          <main
+            id="ke-main"
+            data-testid="ke-main"
+            className="page-fade flex-1 p-6 md:p-8"
+          >
+            {children}
+          </main>
         </div>
       </div>
     </QueryClientProvider>

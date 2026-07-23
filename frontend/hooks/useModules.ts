@@ -18,6 +18,20 @@ export function useModules() {
   });
 }
 
+/** Includes ui_hint.hidden modules — for deep-link / agent acceptance (e.g. echo). */
+export function useModulesAll() {
+  return useQuery({
+    queryKey: ["modules", "all"],
+    staleTime: 30_000,
+    queryFn: async () => {
+      const remote = await apiClient.get<ModuleManifest[]>("/api/modules", {
+        auth: false,
+      });
+      return mergeModuleRegistry(remote, { includeHidden: true });
+    },
+  });
+}
+
 export function useReloadModules() {
   const qc = useQueryClient();
   return useMutation({
@@ -31,6 +45,7 @@ export function useReloadModules() {
     },
     onSuccess: (data) => {
       qc.setQueryData(["modules"], data);
+      void qc.invalidateQueries({ queryKey: ["modules"] });
       void qc.invalidateQueries({ queryKey: ["module-integration"] });
     },
   });

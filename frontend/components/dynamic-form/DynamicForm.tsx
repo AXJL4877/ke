@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form";
 import type { FieldSpec, ModuleManifest } from "@/types/module";
 import { stripMockFieldsFromSchema } from "@/lib/anti-mock";
+import { AGENT_TESTID } from "@/lib/agent-macros";
 import { cn } from "@/lib/utils";
 import { ChevronDown } from "lucide-react";
 
@@ -13,8 +14,10 @@ type Props = {
   schema: ModuleManifest["input_schema"];
   onSubmit: (values: Record<string, unknown>) => Promise<void> | void;
   submitLabel?: string;
-  /** Compact sidebar: primary fields first, optional params behind a toggle */
+  /** Compact: required/main fields first; optional behind toggle (default on for shell) */
   progressive?: boolean;
+  /** Prefill / reset when macros or deep-links change */
+  initialValues?: Record<string, unknown>;
 };
 
 const CONTROL =
@@ -55,48 +58,57 @@ function humanOptionLabel(opt: string | number | boolean): string {
 function splitProgressive(
   entries: [string, FieldSpec][]
 ): { primary: [string, FieldSpec][]; more: [string, FieldSpec][] } {
-  const longFields = entries.filter(([, d]) => !isParamField(d));
-  const paramFields = entries.filter(([, d]) => isParamField(d));
-
-  // Required / main content fields stay visible
-  const primary = longFields.filter(
+  const primary = entries.filter(
     ([, d]) =>
       d.required ||
       d.format === "textarea" ||
       d.type === "file" ||
-      d.type === "file[]" ||
-      d.type === "string"
+      d.type === "file[]"
   );
   const shown =
     primary.length > 0
       ? primary
-      : longFields.length > 0
-        ? [longFields[0]]
-        : entries.slice(0, 1);
+      : entries.length > 0
+        ? [entries[0]]
+        : [];
   const shownKeys = new Set(shown.map(([k]) => k));
-  const more = [
-    ...longFields.filter(([k]) => !shownKeys.has(k)),
-    ...paramFields.filter(([k]) => !shownKeys.has(k)),
-  ];
+  const more = entries.filter(([k]) => !shownKeys.has(k));
   return { primary: shown, more };
 }
 
-/** Auto-render form from MODULE_SPEC.md §3 / §9 */
+/** Auto-render form from MODULE_SPEC.md §3 / §9 — labels only, no helper paragraphs */
 export function DynamicForm({
   schema,
   onSubmit,
-  submitLabel = "Submit",
-  progressive = false,
+  submitLabel = "运行",
+  progressive = true,
+  initialValues,
 }: Props) {
   const safeSchema = stripMockFieldsFromSchema(schema);
+  const mergedDefaults = {
+    ...defaultsFromSchema(safeSchema),
+    ...(initialValues || {}),
+  };
   const {
     register,
     handleSubmit,
+    reset,
     formState: { errors, isSubmitting },
   } = useForm({
-    defaultValues: defaultsFromSchema(safeSchema),
+    defaultValues: mergedDefaults,
   });
   const [showMore, setShowMore] = useState(false);
+
+  const schemaKey = JSON.stringify(safeSchema);
+  const initialKey = JSON.stringify(initialValues ?? null);
+
+  useEffect(() => {
+    reset({
+      ...defaultsFromSchema(safeSchema),
+      ...(initialValues || {}),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by serialized schema/initial
+  }, [schemaKey, initialKey, reset]);
 
   const wide = hasTextarea(safeSchema) && !progressive;
   const entries = Object.entries(safeSchema);
@@ -110,14 +122,19 @@ export function DynamicForm({
     const label = def.label || key;
     const err = errors[key]?.message as string | undefined;
     const required = Boolean(def.required);
-    const desc = undefined;
+    const fieldId = `ke-input-${key}`;
+    const testId = AGENT_TESTID.field(key);
+    const reg = register(key, { required });
 
     if (def.type === "enum" && def.options?.length) {
       return (
-        <FormField key={key} label={label} description={desc} error={err}>
+        <FormField key={key} label={label} htmlFor={fieldId} error={err}>
           <select
+            id={fieldId}
+            data-testid={testId}
             className={cn(CONTROL, "h-10")}
-            {...register(key, { required })}
+            aria-invalid={Boolean(err)}
+            {...reg}
           >
             {def.options.map((opt) => (
               <option key={String(opt)} value={String(opt)}>
@@ -131,20 +148,30 @@ export function DynamicForm({
 
     if (def.type === "boolean") {
       return (
-        <FormField key={key} label={label} description={desc} error={err}>
-          <input type="checkbox" className="h-4 w-4" {...register(key)} />
+        <FormField key={key} label={label} htmlFor={fieldId} error={err}>
+          <input
+            id={fieldId}
+            type="checkbox"
+            data-testid={testId}
+            className="h-4 w-4"
+            aria-invalid={Boolean(err)}
+            {...register(key)}
+          />
         </FormField>
       );
     }
 
     if (def.type === "number") {
       return (
-        <FormField key={key} label={label} description={desc} error={err}>
+        <FormField key={key} label={label} htmlFor={fieldId} error={err}>
           <input
+            id={fieldId}
             type="number"
+            data-testid={testId}
             className={cn(CONTROL, "h-10")}
             min={def.min}
             max={def.max}
+            aria-invalid={Boolean(err)}
             {...register(key, { required, valueAsNumber: true })}
           />
         </FormField>
@@ -153,13 +180,16 @@ export function DynamicForm({
 
     if (def.type === "file" || def.type === "file[]") {
       return (
-        <FormField key={key} label={label} description={desc} error={err}>
+        <FormField key={key} label={label} htmlFor={fieldId} error={err}>
           <input
+            id={fieldId}
             type="file"
+            data-testid={testId}
             multiple={def.type === "file[]"}
             accept={def.accept?.join(",")}
             className="flex h-10 w-full text-sm"
-            {...register(key, { required })}
+            aria-invalid={Boolean(err)}
+            {...reg}
           />
         </FormField>
       );
@@ -167,23 +197,32 @@ export function DynamicForm({
 
     if (def.format === "textarea") {
       return (
-        <FormField key={key} label={label} description={desc} error={err}>
+        <FormField key={key} label={label} htmlFor={fieldId} error={err}>
           <textarea
-            className={cn(CONTROL, progressive ? "min-h-[88px] py-2" : "min-h-[120px] py-2")}
+            id={fieldId}
+            data-testid={testId}
+            className={cn(
+              CONTROL,
+              progressive ? "min-h-[88px] py-2" : "min-h-[120px] py-2"
+            )}
             maxLength={def.max_length}
             rows={progressive ? 4 : 6}
-            {...register(key, { required })}
+            aria-invalid={Boolean(err)}
+            {...reg}
           />
         </FormField>
       );
     }
 
     return (
-      <FormField key={key} label={label} description={desc} error={err}>
+      <FormField key={key} label={label} htmlFor={fieldId} error={err}>
         <input
+          id={fieldId}
+          data-testid={testId}
           className={cn(CONTROL, "h-10")}
           maxLength={def.max_length}
-          {...register(key, { required })}
+          aria-invalid={Boolean(err)}
+          {...reg}
         />
       </FormField>
     );
@@ -191,6 +230,7 @@ export function DynamicForm({
 
   return (
     <form
+      data-testid={AGENT_TESTID.form}
       className={cn(
         progressive ? "w-full max-w-none" : wide ? "max-w-3xl" : "max-w-lg",
         "space-y-4"
@@ -205,7 +245,9 @@ export function DynamicForm({
         <div className="space-y-3">
           <button
             type="button"
+            data-testid={AGENT_TESTID.moreParams}
             onClick={() => setShowMore((v) => !v)}
+            aria-expanded={showMore}
             className="flex w-full items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
           >
             <ChevronDown
@@ -214,7 +256,7 @@ export function DynamicForm({
                 showMore ? "rotate-0" : "-rotate-90"
               )}
             />
-            更多参数
+            更多
             <span className="tabular-nums text-muted-foreground/80">
               ({more.length})
             </span>
@@ -233,7 +275,12 @@ export function DynamicForm({
         </div>
       ) : null}
 
-      <Button type="submit" disabled={isSubmitting} className="w-full">
+      <Button
+        type="submit"
+        data-testid={AGENT_TESTID.taskSubmit}
+        disabled={isSubmitting}
+        className="w-full"
+      >
         {isSubmitting ? "提交中…" : submitLabel}
       </Button>
     </form>

@@ -11,6 +11,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Check, Copy, Loader2, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { AGENT_TESTID } from "@/lib/agent-macros";
 import type { QueueTask } from "./TaskQueueStrip";
 
 export function TaskResultStage({
@@ -48,11 +49,11 @@ export function TaskResultStage({
 
   if (!task) {
     return (
-      <div className="flex min-h-[24rem] flex-col items-center justify-center rounded-xl border border-dashed border-border/70 bg-muted/10 px-6 text-center">
+      <div
+        data-testid={AGENT_TESTID.taskResult}
+        className="flex min-h-[24rem] flex-col items-center justify-center rounded-xl border border-dashed border-border/70 bg-muted/10 px-6 text-center"
+      >
         <p className="text-base font-medium text-foreground/80">输出</p>
-        <p className="mt-2 max-w-sm text-sm text-muted-foreground">
-          点击右上角「输入」填写参数并运行，结果会显示在这里。
-        </p>
       </div>
     );
   }
@@ -70,7 +71,10 @@ export function TaskResultStage({
     task.status === "pending" || task.status === "processing";
 
   return (
-    <div className="page-fade flex min-h-[24rem] flex-col rounded-xl border border-border/80 bg-card/90 shadow-[0_8px_28px_-18px_hsl(215_30%_20%/0.2)]">
+    <div
+      data-testid={AGENT_TESTID.taskResult}
+      className="page-fade flex min-h-[24rem] flex-col rounded-xl border border-border/80 bg-card/90 shadow-[0_8px_28px_-18px_hsl(215_30%_20%/0.2)]"
+    >
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border/60 px-5 py-3.5">
         <div className="min-w-0">
           <h2 className="truncate text-base font-semibold tracking-tight">
@@ -79,6 +83,12 @@ export function TaskResultStage({
               #{task.id.slice(0, 8)}
             </span>
           </h2>
+          <p
+            data-testid={AGENT_TESTID.taskStatus}
+            className="mt-0.5 text-xs text-muted-foreground"
+          >
+            {task.status}
+          </p>
         </div>
         {confirming ? (
           <div className="flex shrink-0 items-center gap-1">
@@ -106,6 +116,7 @@ export function TaskResultStage({
             size="icon"
             className="h-8 w-8 text-muted-foreground hover:text-destructive"
             aria-label="删除任务"
+            data-testid={AGENT_TESTID.taskDelete(task.id)}
             onClick={() => setConfirming(true)}
             disabled={remove.isPending}
           >
@@ -122,9 +133,7 @@ export function TaskResultStage({
         {running ? (
           <div className="flex flex-1 flex-col items-center justify-center py-10 text-center">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
-            <p className="mt-4 text-sm text-muted-foreground">
-              处理中，完成后显示在此
-            </p>
+            <p className="mt-4 text-sm text-muted-foreground">处理中…</p>
           </div>
         ) : null}
 

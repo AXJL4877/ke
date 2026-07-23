@@ -4,13 +4,17 @@ import { TaskProgressHeader } from "@/components/task-queue-list/TaskProgressHea
 import { TaskResultStage } from "@/components/task-queue-list/TaskResultStage";
 import type { QueueTask } from "@/components/task-queue-list/TaskQueueStrip";
 import { DynamicForm } from "@/components/dynamic-form/DynamicForm";
-import { useModules, useReloadModules } from "@/hooks/useModules";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useModules, useModulesAll, useReloadModules } from "@/hooks/useModules";
+import { useSearchParams } from "next/navigation";
 import { apiClient, ApiError } from "@/lib/api-client";
+import {
+  AGENT_TESTID,
+  findMacro,
+  macrosForModule,
+} from "@/lib/agent-macros";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Suspense,
-  startTransition,
   useEffect,
   useMemo,
   useRef,
@@ -35,21 +39,34 @@ const ACTIVE = new Set(["pending", "processing"]);
 
 function TasksContent() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const moduleId = searchParams.get("module");
-  const { data: modules, isLoading: modulesLoading } = useModules();
+  const openParam = searchParams.get("open");
+  const macroId = searchParams.get("macro");
+  const { data: modules } = useModules();
+  const { data: modulesAll } = useModulesAll();
   const reload = useReloadModules();
   const queryClient = useQueryClient();
-  const mod = modules?.find((m) => m.id === moduleId);
+  const mod =
+    modulesAll?.find((m) => m.id === moduleId) ??
+    modules?.find((m) => m.id === moduleId);
   const [ui, setUi] = useState<ModuleUI | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [paramsOpen, setParamsOpen] = useState(false);
+  const [formInitial, setFormInitial] = useState<
+    Record<string, unknown> | undefined
+  >(undefined);
   const autoOpenedFor = useRef<string | null>(null);
+  const macroApplied = useRef<string | null>(null);
 
   const safeSchema = useMemo(
     () => (mod ? stripMockFieldsFromSchema(mod.input_schema) : {}),
     [mod]
+  );
+
+  const moduleMacros = useMemo(
+    () => (moduleId ? macrosForModule(moduleId) : []),
+    [moduleId]
   );
 
   const { data: tasks = [], isLoading: tasksLoading } = useQuery({
@@ -88,20 +105,34 @@ function TasksContent() {
     setSelectedId(preferred?.id ?? null);
   }, [tasks, selectedId]);
 
-  // Open input once when landing on a module with an empty queue
+  // Open input: empty queue, or ?open=1
   useEffect(() => {
     if (!moduleId || !mod || tasksLoading) return;
+    if (openParam === "1" || openParam === "true") {
+      setParamsOpen(true);
+      return;
+    }
     if (tasks.length > 0) return;
     if (autoOpenedFor.current === moduleId) return;
     autoOpenedFor.current = moduleId;
     setParamsOpen(true);
-  }, [moduleId, mod, tasks.length, tasksLoading]);
+  }, [moduleId, mod, tasks.length, tasksLoading, openParam]);
 
-  function selectModule(id: string) {
-    startTransition(() => {
-      router.push(`/tasks?module=${encodeURIComponent(id)}`);
-    });
-  }
+  // Apply ?macro=
+  useEffect(() => {
+    if (!moduleId || !mod || !macroId) return;
+    const key = `${moduleId}:${macroId}`;
+    if (macroApplied.current === key) return;
+    const macro = findMacro(macroId);
+    if (!macro || macro.module_id !== moduleId) return;
+    macroApplied.current = key;
+    setFormInitial(macro.input_params);
+    setParamsOpen(true);
+    if (macro.auto_run) {
+      void submit(macro.input_params);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot macro apply
+  }, [moduleId, mod, macroId]);
 
   async function submit(values: Record<string, unknown>) {
     if (!mod) return;
@@ -129,11 +160,20 @@ function TasksContent() {
     }
   }
 
+  function applyMacro(id: string) {
+    const macro = findMacro(id);
+    if (!macro) return;
+    setFormInitial({ ...macro.input_params });
+    if (macro.auto_run) {
+      void submit(macro.input_params);
+    }
+  }
+
   const Form = ui?.Form;
   const selectedTask = tasks.find((t) => t.id === selectedId) ?? null;
-  const selectedManifest = modules?.find(
-    (m) => m.id === selectedTask?.module_id
-  );
+  const selectedManifest =
+    modulesAll?.find((m) => m.id === selectedTask?.module_id) ??
+    modules?.find((m) => m.id === selectedTask?.module_id);
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-3">
@@ -150,6 +190,7 @@ function TasksContent() {
             disabled={reload.isPending}
             onClick={() => reload.mutate()}
             aria-label="刷新"
+            data-testid={AGENT_TESTID.taskReload}
           >
             <RefreshCw
               className={cn("h-4 w-4", reload.isPending && "animate-spin")}
@@ -159,7 +200,9 @@ function TasksContent() {
             type="button"
             size="sm"
             className="h-8 gap-1.5"
+            disabled={!mod}
             onClick={() => setParamsOpen(true)}
+            data-testid={AGENT_TESTID.taskOpenInput}
           >
             <Plus className="h-4 w-4" />
             输入
@@ -170,7 +213,7 @@ function TasksContent() {
       <TaskProgressHeader
         task={selectedTask}
         tasks={tasks}
-        modules={modules}
+        modules={modulesAll ?? modules}
         selectedId={selectedId}
         onSelect={setSelectedId}
         moduleId={moduleId ?? undefined}
@@ -182,43 +225,29 @@ function TasksContent() {
       <Dialog open={paramsOpen} onOpenChange={setParamsOpen}>
         <DialogContent className="max-h-[85vh] max-w-md overflow-y-auto p-5 sm:max-w-lg">
           <DialogHeader className="mb-3">
-            <DialogTitle>任务输入</DialogTitle>
+            <DialogTitle>{mod ? mod.name : "输入"}</DialogTitle>
           </DialogHeader>
 
-          <section className="mb-4 space-y-2">
-            <h2 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              模块
-            </h2>
-            {modulesLoading ? (
-              <p className="text-sm text-muted-foreground">加载中…</p>
-            ) : (
-              <div className="flex max-h-28 flex-col gap-0.5 overflow-y-auto rounded-md border border-border/60 p-1">
-                {(modules ?? []).map((m) => (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => selectModule(m.id)}
-                    className={cn(
-                      "rounded-md px-2.5 py-1.5 text-left text-sm transition",
-                      moduleId === m.id
-                        ? "bg-primary/10 font-medium text-primary"
-                        : "text-foreground/80 hover:bg-accent/70"
-                    )}
-                  >
-                    {m.name}
-                  </button>
-                ))}
-                {(modules?.length ?? 0) === 0 && (
-                  <span className="px-2 py-1.5 text-sm text-muted-foreground">
-                    暂无可用模块
-                  </span>
-                )}
-              </div>
-            )}
-          </section>
-
           {mod ? (
-            <section className="space-y-3 border-t border-border/60 pt-3">
+            <div className="space-y-3">
+              {moduleMacros.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {moduleMacros.map((m) => (
+                    <Button
+                      key={m.id}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7"
+                      data-testid={AGENT_TESTID.macro(m.id)}
+                      onClick={() => applyMacro(m.id)}
+                    >
+                      {m.label}
+                    </Button>
+                  ))}
+                </div>
+              ) : null}
+
               {submitError ? (
                 <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
                   <div className="font-semibold">提交失败</div>
@@ -250,13 +279,12 @@ function TasksContent() {
                   onSubmit={submit}
                   submitLabel="运行"
                   progressive
+                  initialValues={formInitial}
                 />
               )}
-            </section>
+            </div>
           ) : (
-            <p className="border-t border-border/60 pt-3 text-sm text-muted-foreground">
-              选择模块后填写参数。
-            </p>
+            <p className="text-sm text-muted-foreground">请先选择模块</p>
           )}
         </DialogContent>
       </Dialog>

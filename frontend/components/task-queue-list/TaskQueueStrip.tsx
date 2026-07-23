@@ -89,7 +89,7 @@ export function TaskQueueStrip({
   if (tasks.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-border/70 bg-muted/15 px-4 py-3 text-sm text-muted-foreground">
-        暂无任务。点击「输入」填写参数并运行。
+        暂无任务
       </div>
     );
   }
@@ -111,6 +111,7 @@ export function TaskQueueStrip({
             className="h-7 text-xs text-muted-foreground hover:text-destructive"
             onClick={() => clearFinished.mutate()}
             disabled={clearFinished.isPending}
+            data-testid="ke-task-clear-finished"
           >
             {clearFinished.isPending ? (
               <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
@@ -145,6 +146,7 @@ export function TaskQueueStrip({
             >
               <button
                 type="button"
+                data-testid={`ke-task-card-${task.id}`}
                 onClick={() => onSelect(task.id)}
                 className={cn(
                   "w-[11.5rem] rounded-lg border px-2.5 py-2 text-left transition-all",
