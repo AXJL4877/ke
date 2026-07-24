@@ -14,12 +14,12 @@
 ```
 
 - **静默**：backend / frontend **不弹命令窗**，日志写入 `logs/backend.log`、`logs/frontend.log`
-- **静默拉起全部接入模块**：`start.ps1` 默认扫描契约并启动全部下游（`CreateNoWindow` + `KE_SILENT=1`，无黑窗；日志 `logs/locals/`）；跳过：`$env:KE_AUTO_START_LOCAL='0'`
+- **静默拉起全部接入模块**：`start.ps1` 默认扫描契约并**并行**启动全部下游（共享等待预算，默认 90s；进程已死 / 日志 fatal 提前失败；`CreateNoWindow` + `KE_SILENT=1`，无黑窗；日志 `logs/locals/`）；跳过：`$env:KE_AUTO_START_LOCAL='0'`
 - **关闭即全停**：最后一个 KE 标签页关闭或右上角「退出 KE」→ `stop.ps1`（ke 前后端 + 契约模块端口）
 - **Python 环境自愈**：启动下游前校验其 `.venv`（`pyvenv.cfg` + `Scripts/python.exe` + 最小运行探针）；残缺/不可运行则删除，由模块启动脚本在本机重建
 - 健康检查通过后自动打开浏览器 `http://localhost:3000`
 - 停止：双击 `stop.bat`、点浏览器「退出 KE」、或关闭最后一个 KE 标签页（默认停壳 + 全部接入模块；只停壳：`$env:KE_STOP_LOCALS='0'`）
-- 跳过启动时拉下游：`$env:KE_AUTO_START_LOCAL='0'`
+- 跳过启动时拉下游：`$env:KE_AUTO_START_LOCAL='0'`（用到再拉；或先手动起通各模块，下次走 `already online`）
 - 关闭 `.venv` 自愈（仅排障）：`$env:KE_REPAIR_VENV='0'`
 
 排障：看 `logs/`；启动失败时 `start.ps1` 会打印日志末尾。

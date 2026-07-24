@@ -3,6 +3,12 @@
 #   .\scripts\Start-LocalServices.ps1
 #   .\scripts\Start-LocalServices.ps1 -ServiceIds download -ServiceIds asr
 # Skip all: $env:KE_AUTO_START_LOCAL='0' (checked in start.ps1)
+#
+# Wait strategy:
+# - Spawn all missing services first, then wait in PARALLEL under one WaitSeconds budget
+#   (not N * WaitSeconds sequential).
+# - Fail-fast when the launcher process exits without /health, or logs show a fatal error.
+# - "pip install" / Creating .venv is status only — does not extend the budget.
 param(
   [string]$KeRoot = "",
   [int]$WaitSeconds = 90,
@@ -38,6 +44,69 @@ function Test-HealthLabel {
   } catch {
     return $false
   }
+}
+
+function Test-ProcessAlive {
+  param([System.Diagnostics.Process]$Proc)
+  if ($null -eq $Proc) { return $false }
+  try {
+    $Proc.Refresh()
+    return -not $Proc.HasExited
+  } catch {
+    return $false
+  }
+}
+
+function Get-LogTailText {
+  param([string]$LogPath, [int]$TailLines = 40)
+  $parts = New-Object System.Collections.Generic.List[string]
+  foreach ($p in @($LogPath, ($LogPath + ".err"))) {
+    if (-not (Test-Path -LiteralPath $p)) { continue }
+    try {
+      $lines = Get-Content -LiteralPath $p -Tail $TailLines -ErrorAction Stop
+      if ($lines) { [void]$parts.Add(($lines -join "`n")) }
+    } catch { }
+  }
+  return ($parts -join "`n")
+}
+
+function Get-StartupFailureReason {
+  # Fail-fast only on clear terminal errors. Do not treat "Installing..." as failure.
+  param([string]$LogPath)
+  $text = Get-LogTailText -LogPath $LogPath -TailLines 60
+  if (-not $text) { return $null }
+
+  $patterns = @(
+    @{ Re = '(?im)^Traceback \(most recent call last\):'; Hint = "python traceback" },
+    @{ Re = '(?i)ModuleNotFoundError:'; Hint = "ModuleNotFoundError" },
+    @{ Re = '(?i)ImportError:'; Hint = "ImportError" },
+    @{ Re = '(?i)SyntaxError:'; Hint = "SyntaxError" },
+    @{ Re = '(?i)Fatal Python error'; Hint = "Fatal Python error" },
+    @{ Re = '(?i)ERROR:\s+(Could not|No matching distribution|Invalid requirement)'; Hint = "pip error" },
+    @{ Re = '(?i)Could not install packages'; Hint = "pip install failed" },
+    @{ Re = '(?i)Address already in use'; Hint = "port bind failed" },
+    @{ Re = '(?i)error while attempting to bind'; Hint = "port bind failed" },
+    @{ Re = '(?i)PermissionError:'; Hint = "PermissionError" },
+    @{ Re = '(?i)The system cannot find the (file|path)'; Hint = "missing file/path" },
+    @{ Re = '(?i)cannot be loaded because running scripts is disabled'; Hint = "execution policy" }
+  )
+  foreach ($p in $patterns) {
+    if ($text -match $p.Re) { return $p.Hint }
+  }
+  return $null
+}
+
+function Get-StartupBusyHint {
+  param([string]$LogPath)
+  $text = Get-LogTailText -LogPath $LogPath -TailLines 20
+  if (-not $text) { return $null }
+  if ($text -match '(?i)Installing dependencies|pip install|Collecting |Downloading |Creating \.venv|Building wheel') {
+    return "installing deps"
+  }
+  if ($text -match '(?i)Starting API|Uvicorn running|Application startup') {
+    return "starting server"
+  }
+  return $null
 }
 
 function Find-LiveBase {
@@ -372,6 +441,8 @@ $reused = @()
 $failed = @()
 $skipped = @()
 $pidMap = @{}
+# Pending starts: spawn all first, then wait in parallel (one shared deadline).
+$pending = New-Object System.Collections.Generic.List[object]
 
 foreach ($sid in ($services.Keys | Sort-Object)) {
   $svc = $services[$sid]
@@ -407,32 +478,81 @@ foreach ($sid in ($services.Keys | Sort-Object)) {
   try {
     $proc = Start-ServiceSilent -ServiceId $svc.service_id -Folder $svc.folder -ScriptPath $svc.script -LogPath $log
     if ($proc) { $pidMap[$svc.service_id] = $proc.Id }
+    if ($NoWait) {
+      $started += $svc.service_id
+      continue
+    }
+    [void]$pending.Add([pscustomobject]@{
+      svc      = $svc
+      proc     = $proc
+      log      = $log
+      spawnedAt = Get-Date
+      lastHint = ""
+    })
   } catch {
     Write-Warning "[ke-local] start failed: $($_.Exception.Message)"
     $failed += $svc.service_id
-    continue
   }
+}
 
-  if ($NoWait) {
-    $started += $svc.service_id
-    continue
-  }
-
-  $ok = $false
+# Parallel wait: shared deadline = WaitSeconds (not N * WaitSeconds).
+# Early fail when wrapper process dies without /health, or logs show a fatal error.
+if ($pending.Count -gt 0) {
+  Write-Host "[ke-local] waiting in parallel for $($pending.Count) service(s), budget=${WaitSeconds}s (fail-fast on dead process / log errors)"
   $deadline = (Get-Date).AddSeconds($WaitSeconds)
-  while ((Get-Date) -lt $deadline) {
+  $graceSeconds = 3
+  $still = New-Object System.Collections.Generic.List[object]
+  foreach ($item in $pending) { [void]$still.Add($item) }
+
+  while ($still.Count -gt 0 -and (Get-Date) -lt $deadline) {
     Start-Sleep -Seconds 2
-    $live = Find-LiveBase -ServiceId $svc.service_id -Label $svc.label -DefaultPort $svc.port -MaxTries $svc.max_tries
-    if ($live) {
-      Write-Host "[ke-local] ready: $live"
-      $ok = $true
-      break
+    $next = New-Object System.Collections.Generic.List[object]
+    foreach ($item in $still) {
+      $svc = $item.svc
+      $live = Find-LiveBase -ServiceId $svc.service_id -Label $svc.label -DefaultPort $svc.port -MaxTries $svc.max_tries
+      if ($live) {
+        Write-Host "[ke-local] ready: $($svc.service_id) -> $live"
+        $started += $svc.service_id
+        continue
+      }
+
+      $fatal = Get-StartupFailureReason -LogPath $item.log
+      if ($fatal) {
+        Write-Warning "[ke-local] early fail $($svc.service_id): $fatal. Log: $($item.log)"
+        $failed += $svc.service_id
+        continue
+      }
+
+      $alive = Test-ProcessAlive -Proc $item.proc
+      $age = ((Get-Date) - $item.spawnedAt).TotalSeconds
+      if (-not $alive -and $age -ge $graceSeconds) {
+        # Re-check health once: start scripts may exit 0 when already online.
+        $live2 = Find-LiveBase -ServiceId $svc.service_id -Label $svc.label -DefaultPort $svc.port -MaxTries $svc.max_tries
+        if ($live2) {
+          Write-Host "[ke-local] ready: $($svc.service_id) -> $live2"
+          $started += $svc.service_id
+          continue
+        }
+        Write-Warning "[ke-local] early fail $($svc.service_id): process exited before /health. Log: $($item.log)"
+        $failed += $svc.service_id
+        continue
+      }
+
+      $busy = Get-StartupBusyHint -LogPath $item.log
+      if ($busy -and $busy -ne $item.lastHint) {
+        Write-Host "[ke-local] $($svc.service_id): $busy ..."
+        $item.lastHint = $busy
+      }
+      [void]$next.Add($item)
     }
+    $still = $next
   }
-  if ($ok) {
-    $started += $svc.service_id
-  } else {
-    Write-Warning "[ke-local] timed out waiting for $($svc.service_id) (first run may still be installing deps). Log: $log"
+
+  foreach ($item in $still) {
+    $svc = $item.svc
+    $busy = Get-StartupBusyHint -LogPath $item.log
+    $extra = if ($busy) { " (last seen: $busy; first run may still be installing)" } else { "" }
+    Write-Warning "[ke-local] timed out waiting for $($svc.service_id)$extra. Log: $($item.log)"
     $failed += $svc.service_id
   }
 }

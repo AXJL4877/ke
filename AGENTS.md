@@ -120,15 +120,17 @@ HTTP `POST /api/tasks` 与点击提交同一后端；**验收以点击跑通为�
 2. 用 `manifest_path` / 同级 `mo_kuai/<folder>` 找到源目录
 3. 启动前检查源目录内 `.venv`：必须同时有 `pyvenv.cfg`、`Scripts/python.exe` 且能运行最小 Python 探针；损坏则删除，让源启动脚本重建
 4. 读源 `module.json` → `local.start`，**静默**启动（`CreateNoWindow` + `KE_SILENT=1`，无黑窗；优先 `start_api` / `start.bat`，避免 `start_web` 弹浏览器；日志在 `logs/locals/`）
-5. 探活 `/health.service === label`，写 `ports.json` 由源脚本自己完成
+5. **并行**探活 `/health.service === label`（共享等待预算，默认 90s；进程已死 / 日志 fatal 提前失败，不串行白等 N×90s），写 `ports.json` 由源脚本自己完成
 6. 再启 ke 前后端
 
 **默认**：`start.ps1` 启动时**静默拉起全部**契约下游（不弹模块命令窗）；关闭最后一个 KE 浏览器标签或点「退出 KE」会调用 `stop.ps1` 停掉壳 + 全部接入模块。  
-**跳过启动时全拉**：`$env:KE_AUTO_START_LOCAL='0'`  
+**跳过启动时全拉**：`$env:KE_AUTO_START_LOCAL='0'`（用到再由 on-demand 拉）  
 **只停壳、保留模块**：`$env:KE_STOP_LOCALS='0'`  
-**按需补拉**（任务执行前兜底）：`worker/tasks.py` + `KE_ON_DEMAND_LOCAL=1`（默认开）
+**按需补拉**（任务执行前兜底）：`worker/tasks.py` + `KE_ON_DEMAND_LOCAL=1`（默认开）  
+**加速技巧**：各模块先手动起通一次 → 下次 `already online` 几乎不等；或 `KE_AUTO_START_LOCAL=0` 跳过开机全拉
 
-单独补拉：`.\scripts\Start-LocalServices.ps1` 或带 `-ServiceIds download`
+单独补拉：`.\scripts\Start-LocalServices.ps1` 或带 `-ServiceIds download`  
+无等待只拉起：`.\scripts\Start-LocalServices.ps1 -NoWait`
 
 关闭 venv 自愈（仅排障）：`$env:KE_REPAIR_VENV='0'`
 

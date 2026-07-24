@@ -115,11 +115,13 @@ def ensure_local_services(
             creationflags = subprocess.CREATE_NO_WINDOW
         except AttributeError:
             creationflags = 0
+        # Start-LocalServices waits in parallel under one WaitSeconds budget
+        # (plus venv preflight / spawn overhead), not N * wait_seconds.
         proc = subprocess.run(
             args,
             capture_output=True,
             text=True,
-            timeout=max(wait_seconds + 60, 120),
+            timeout=max(wait_seconds + 120, 180),
             check=False,
             creationflags=creationflags,
         )
