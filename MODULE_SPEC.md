@@ -1,6 +1,6 @@
 # MODULE_SPEC.md
 
-> KE 壳仓库内的完整规范副本。开发时以本文件为准；`mo_kuai/MODULE_SPEC.md` 应保持同步。  
+> KE 壳仓库内的完整规范副本。开发时以本文件为准；宿主权威副本见 `scripts/docs/specs/MODULE_SPEC.md`（https://github.com/AXJL4877/scripts）。  
 > 壳实现：`_registry` / `_ui-registry` / `module_loader` / `DynamicForm`。
 
 ## ke shell（任务型模块速览）
