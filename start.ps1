@@ -99,7 +99,7 @@ if (-not $skipLocals) {
   if (Test-Path $StartLocals) {
     Write-Host "[ke] starting all contract backends (silent, no console windows)..."
     try {
-      & $StartLocals -KeRoot $Root -WaitSeconds 90
+      & $StartLocals -KeRoot $Root -WaitSeconds 45
     } catch {
       Write-Warning "[ke] local service start had errors: $($_.Exception.Message)"
       Write-Warning "[ke] continuing shell start; check logs\locals\"

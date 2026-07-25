@@ -23,7 +23,36 @@ def test_echo_handler_run():
     assert result == {"echo": "hi"}
 
 
-def test_handler_missing_run_raises(tmp_path):
+def test_reload_preserves_handler_subclass(tmp_path):
+    """After importlib.reload(modules._base), Handler subclasses must still load.
+
+    Regression: stale BaseModuleHandler import made issubclass fail → 「暂无模块」.
+    """
+    mod = tmp_path / "cj_demo"
+    mod.mkdir()
+    (mod / "module.json").write_text(
+        '{"id":"cj-demo","name":"Demo","description":"x","version":"1.0.0","category":"system",'
+        '"input_schema":{},"output_schema":{},"runtime":{"async":false},'
+        '"capabilities":[{"id":"x","desc":"x","kind":"core","must_keep":true,'
+        '"verify":{"manual":"n/a"}}]}',
+        encoding="utf-8",
+    )
+    (mod / "handler.py").write_text(
+        "from modules._base import BaseModuleHandler\n"
+        "class Handler(BaseModuleHandler):\n"
+        "    def run(self, params):\n"
+        "        return {'ok': True}\n",
+        encoding="utf-8",
+    )
+    loader = ModuleLoader(tmp_path)
+    assert "cj-demo" in {m["id"] for m in loader.list_manifests(for_api=False)}
+    assert loader.get_handler("cj-demo").run({}) == {"ok": True}
+    # Second reload reloads modules._base — must not drop Handler modules
+    loader.reload()
+    assert "cj-demo" in {m["id"] for m in loader.list_manifests(for_api=False)}
+    assert not any("handler.py must expose" in e for e in loader.get_load_errors())
+    assert loader.get_handler("cj-demo").run({}) == {"ok": True}
+
     bad = tmp_path / "badmod"
     bad.mkdir()
     (bad / "module.json").write_text(

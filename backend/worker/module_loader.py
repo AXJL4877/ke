@@ -27,7 +27,9 @@ from core.integration_contract import (  # noqa: E402
     contract_path_for,
     load_and_validate_contract,
 )
-from modules._base import BaseModuleHandler, assert_handler_contract  # noqa: E402
+# assert_handler_contract / BaseModuleHandler: always take from live modules._base
+# inside reload() / _load_handler after importlib.reload — a stale import breaks
+# Handler issubclass checks and surfaces as 「暂无模块」.
 
 REQUIRED_MANIFEST_KEYS = (
     "id",
@@ -69,6 +71,11 @@ class ModuleLoader:
             del sys.modules[k]
         if "modules._base" in sys.modules:
             importlib.reload(sys.modules["modules._base"])
+        # Rebind after reload so contract checks use the same class identity
+        # as _load_handler (which always imports the live modules._base).
+        import modules._base as _base_live
+
+        assert_handler = _base_live.assert_handler_contract
 
         if not self.modules_dir.exists():
             logger.warning("modules dir missing: %s", self.modules_dir)
@@ -116,7 +123,7 @@ class ModuleLoader:
                     warnings.append(f"已校验 {CONTRACT_FILENAME}（must_keep 全覆盖）")
 
                 handler = self._load_handler(child, module_id)
-                assert_handler_contract(handler)
+                assert_handler(handler)
                 self._manifests[module_id] = manifest
                 self._load_warnings[module_id] = warnings
                 self._handlers[module_id] = handler
@@ -221,13 +228,19 @@ class ModuleLoader:
         spec.loader.exec_module(mod)
 
         handler_cls = getattr(mod, "Handler", None)
-        if isinstance(handler_cls, type) and issubclass(handler_cls, BaseModuleHandler):
+        # Always resolve BaseModuleHandler from the live modules._base module.
+        # ModuleLoader.reload() may importlib.reload(_base), which creates a new
+        # class object; comparing against a stale import skips every Handler module.
+        import modules._base as _base_live
+
+        base_cls = _base_live.BaseModuleHandler
+        if isinstance(handler_cls, type) and issubclass(handler_cls, base_cls):
             return handler_cls()
         if hasattr(mod, "handler"):
             return mod.handler
         if hasattr(mod, "run") and callable(mod.run):
 
-            class _FnHandler(BaseModuleHandler):
+            class _FnHandler(base_cls):
                 def run(self, params: dict[str, Any]) -> dict[str, Any]:
                     return mod.run(params)
 

@@ -117,10 +117,10 @@ HTTP `POST /api/tasks` 与点击提交同一后端；**验收以点击跑通为�
 `.\start.ps1` / `start.bat` 默认会：
 
 1. 扫描已接入模块的 `integration.contract.json`（`source` + `depends_on`）
-2. 用 `manifest_path` / 同级 `mo_kuai/<folder>` 找到源目录
+2. 用 `manifest_path` / **`ke/deps/<folder>` 优先** / 同级 `mo_kuai/<folder>` 找到源目录
 3. 启动前检查源目录内 `.venv`：必须同时有 `pyvenv.cfg`、`Scripts/python.exe` 且能运行最小 Python 探针；损坏则删除，让源启动脚本重建
-4. 读源 `module.json` → `local.start`，**静默**启动（`CreateNoWindow` + `KE_SILENT=1`，无黑窗；优先 `start_api` / `start.bat`，避免 `start_web` 弹浏览器；日志在 `logs/locals/`）
-5. **并行**探活 `/health.service === label`（共享等待预算，默认 90s；进程已死 / 日志 fatal 提前失败，不串行白等 N×90s），写 `ports.json` 由源脚本自己完成
+4. 读源 `module.json` → `local.start`，**静默**启动（`CreateNoWindow` + `KE_SILENT=1` + **UTF-8 `-File` bootstrap**，避免中文路径被 ANSI `-Command` 弄坏；优先 `start_api`；日志在 `logs/locals/`）
+5. **并行**探活：先 TCP 快检再 `/health`（启动前只探 1～2 端口；等待阶段约 4 个）；共享等待预算默认 **45s**；进程已死 / 日志 fatal 提前失败
 6. 再启 ke 前后端
 
 **默认**：`start.ps1` 启动时**静默拉起全部**契约下游（不弹模块命令窗）；关闭最后一个 KE 浏览器标签或点「退出 KE」会调用 `stop.ps1` 停掉壳 + 全部接入模块。  
@@ -129,6 +129,15 @@ HTTP `POST /api/tasks` 与点击提交同一后端；**验收以点击跑通为�
 **按需补拉**（任务执行前兜底）：`worker/tasks.py` + `KE_ON_DEMAND_LOCAL=1`（默认开）  
 **加速技巧**：各模块先手动起通一次 → 下次 `already online` 几乎不等；或 `KE_AUTO_START_LOCAL=0` 跳过开机全拉  
 **跳过重复 pip**：各模块 `start_api` 会对 `requirements.txt` 做哈希戳；内容未变则跳过 `pip install`。强制重装：`$env:FORCE_PIP_INSTALL='1'`；全局跳过：`$env:SKIP_PIP_INSTALL='1'`（或 `KE_SKIP_PIP=1`）
+
+### 更新 / 同步 ke 到宿主项目时
+
+| 项 | 说明 |
+|----|------|
+| **保留本地模块** | 同步前备份并还原 `backend/modules/cj-*` 与 `frontend/modules/cj-*`（业务 Handler 不在上游 ke） |
+| **路径优先** | `Start-LocalServices` 解析：`ke/deps` → `../deps` → 同级 / Desktop `mo_kuai` |
+| **必修合入** | `worker/module_loader.py`：`reload()` 后从 **live** `modules._base` 取 `BaseModuleHandler` / `assert_handler_contract`，否则 Handler 模块会再次全部丢（侧栏「暂无模块」） |
+| **验证** | 启动后 `GET /api/modules` 应有非 hidden 业务模块 |
 
 单独补拉：`.\scripts\Start-LocalServices.ps1` 或带 `-ServiceIds download`  
 无等待只拉起：`.\scripts\Start-LocalServices.ps1 -NoWait`

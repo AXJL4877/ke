@@ -9,9 +9,12 @@
 #   (not N * WaitSeconds sequential).
 # - Fail-fast when the launcher process exits without /health, or logs show a fatal error.
 # - "pip install" / Creating .venv is status only — does not extend the budget.
+# - TCP probe before HTTP health (closed ports skip instantly).
+# - Silent start via UTF-8 -File bootstrap (Chinese paths safe; no ANSI -Command).
+# - Resolve module folders: ke/deps first, then mo_kuai / Desktop.
 param(
   [string]$KeRoot = "",
-  [int]$WaitSeconds = 90,
+  [int]$WaitSeconds = 45,
   [switch]$NoWait,
   [string[]]$ServiceIds = @()
 )
@@ -33,11 +36,50 @@ if ($ServiceIds -and $ServiceIds.Count -gt 0) {
   $filterIds = @($ServiceIds | ForEach-Object { [string]$_ } | Where-Object { $_ })
 }
 
+function Test-TcpOpen {
+  # Fast reject closed ports — avoid Invoke-RestMethod hanging ~TimeoutSec each.
+  param([string]$HostName = "127.0.0.1", [int]$Port, [int]$TimeoutMs = 200)
+  if ($Port -le 0) { return $false }
+  $client = $null
+  try {
+    $client = New-Object System.Net.Sockets.TcpClient
+    $iar = $client.BeginConnect($HostName, $Port, $null, $null)
+    if (-not $iar.AsyncWaitHandle.WaitOne($TimeoutMs, $false)) {
+      return $false
+    }
+    $client.EndConnect($iar)
+    return $true
+  } catch {
+    return $false
+  } finally {
+    if ($client) { try { $client.Close() } catch { } }
+  }
+}
+
+function Get-UrlHostPort {
+  param([string]$BaseUrl)
+  try {
+    $u = [Uri]$BaseUrl
+    $port = $u.Port
+    if ($port -lt 1) {
+      $port = if ($u.Scheme -eq "https") { 443 } else { 80 }
+    }
+    return @{ Host = $u.Host; Port = [int]$port }
+  } catch {
+    return $null
+  }
+}
+
 function Test-HealthLabel {
   param([string]$BaseUrl, [string]$ExpectLabel, [string]$HealthPath = "/health")
+  $hp = Get-UrlHostPort -BaseUrl $BaseUrl
+  if ($null -eq $hp) { return $false }
+  if (-not (Test-TcpOpen -HostName $hp.Host -Port $hp.Port -TimeoutMs 200)) {
+    return $false
+  }
   try {
     $u = $BaseUrl.TrimEnd("/") + $HealthPath
-    $r = Invoke-RestMethod -Uri $u -TimeoutSec 2 -ErrorAction Stop
+    $r = Invoke-RestMethod -Uri $u -TimeoutSec 1 -ErrorAction Stop
     if ($null -eq $r) { return $false }
     $svc = $r.service
     return ($svc -eq $ExpectLabel)
@@ -110,9 +152,23 @@ function Get-StartupBusyHint {
 }
 
 function Find-LiveBase {
-  param([string]$ServiceId, [string]$Label, [int]$DefaultPort, [int]$MaxTries = 12)
+  param(
+    [string]$ServiceId,
+    [string]$Label,
+    [int]$DefaultPort,
+    [int]$MaxTries = 12,
+    # Limit how many defaultPort+i candidates to HTTP-probe (TCP already filters).
+    # Pre-start: use 2; wait loop: use 4. Full MaxTries only when needed.
+    [int]$ProbeTries = -1
+  )
+  if ($ProbeTries -lt 0) { $ProbeTries = $MaxTries }
+  $probeN = [Math]::Max(1, [Math]::Min($MaxTries, $ProbeTries))
+
   $cands = New-Object System.Collections.Generic.List[string]
   $envName = ($ServiceId.ToUpper() -replace "-", "_") + "_BASE_URL"
+  $envVal = [Environment]::GetEnvironmentVariable($envName)
+  if ($envVal) { [void]$cands.Add([string]$envVal.TrimEnd("/")) }
+
   if ($env:SCENE_STUDIO_PORTS_FILE) { $regFile = $env:SCENE_STUDIO_PORTS_FILE }
   else { $regFile = Join-Path $env:USERPROFILE ".scene-studio\ports.json" }
   if (Test-Path $regFile) {
@@ -123,11 +179,16 @@ function Find-LiveBase {
     } catch { }
   }
   if ($DefaultPort -gt 0) {
-    for ($i = 0; $i -lt [Math]::Max(1, $MaxTries); $i++) {
+    for ($i = 0; $i -lt $probeN; $i++) {
       [void]$cands.Add("http://127.0.0.1:$($DefaultPort + $i)")
     }
   }
+  $seen = @{}
   foreach ($b in $cands) {
+    if (-not $b) { continue }
+    $key = $b.TrimEnd("/").ToLowerInvariant()
+    if ($seen.ContainsKey($key)) { continue }
+    $seen[$key] = $true
     if (Test-HealthLabel -BaseUrl $b -ExpectLabel $Label) { return $b.TrimEnd("/") }
   }
   return $null
@@ -148,7 +209,10 @@ function Resolve-ModuleFolder {
   $names = New-Object System.Collections.Generic.List[string]
   if ($Label) { [void]$names.Add($Label) }
   [void]$names.Add($ServiceId)
+  # Prefer project deps/ (assembled host) before sibling mo_kuai / Desktop scans.
   $roots = @(
+    (Join-Path $KeRoot "deps"),
+    (Join-Path $KeRoot "..\deps"),
     (Join-Path $KeRoot ".."),
     (Join-Path $KeRoot "..\mo_kuai"),
     (Join-Path $env:USERPROFILE "Desktop\mo_kuai"),
@@ -312,28 +376,36 @@ function Start-ServiceSilent {
     [string]$ScriptPath,
     [string]$LogPath
   )
-  # Launch powershell.exe itself with CreateNoWindow (not cmd -> powershell).
-  # cmd wrappers let child powershell/node allocate a NEW visible console.
-  # KE_SILENT=1 tells module start scripts to skip pause and silent-spawn children.
+  # Use UTF-8 -File bootstrap (not -Command). Embedding Chinese paths in -Command
+  # goes through the ANSI code page and can break cwd/logs (empty log + instant exit).
   $errLog = $LogPath + ".err"
   "" | Set-Content -Path $LogPath -Encoding UTF8
   "" | Set-Content -Path $errLog -Encoding UTF8
 
-  $qFolder = $Folder.Replace("'", "''")
-  $qScript = $ScriptPath.Replace("'", "''")
-  $qLog = $LogPath.Replace("'", "''")
-  $qErr = $errLog.Replace("'", "''")
+  $bootPath = Join-Path $LogsDir ("{0}.boot.ps1" -f $ServiceId)
   $ext = [System.IO.Path]::GetExtension($ScriptPath).ToLowerInvariant()
-
   if ($ext -eq ".ps1") {
-    $inner = "& { `$env:KE_SILENT='1'; Set-Location -LiteralPath '$qFolder'; & '$qScript' *>> '$qLog' 2>> '$qErr' }"
+    $runLine = "& `$scriptPath *>> `$logPath 2>> `$errPath"
   } else {
-    $inner = "& { `$env:KE_SILENT='1'; Set-Location -LiteralPath '$qFolder'; cmd.exe /c `"`"$qScript`"`" *>> '$qLog' 2>> '$qErr' }"
+    $runLine = "cmd.exe /c `"`"`$scriptPath`"`" *>> `$logPath 2>> `$errPath"
   }
+  $boot = @"
+`$ErrorActionPreference = 'Continue'
+`$env:KE_SILENT = '1'
+`$folder = $($Folder | ConvertTo-Json -Compress)
+`$scriptPath = $($ScriptPath | ConvertTo-Json -Compress)
+`$logPath = $($LogPath | ConvertTo-Json -Compress)
+`$errPath = $($errLog | ConvertTo-Json -Compress)
+Set-Location -LiteralPath `$folder
+$runLine
+"@
+  # UTF-8 with BOM so powershell -File parses non-ASCII paths correctly on Windows.
+  $utf8Bom = New-Object System.Text.UTF8Encoding $true
+  [System.IO.File]::WriteAllText($bootPath, $boot, $utf8Bom)
 
   $psi = New-Object System.Diagnostics.ProcessStartInfo
   $psi.FileName = "powershell.exe"
-  $psi.Arguments = "-NoProfile -ExecutionPolicy Bypass -Command `"$inner`""
+  $psi.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$bootPath`""
   $psi.WorkingDirectory = $Folder
   $psi.UseShellExecute = $false
   $psi.CreateNoWindow = $true
@@ -349,7 +421,7 @@ function Start-ServiceSilent {
   $proc = New-Object System.Diagnostics.Process
   $proc.StartInfo = $psi
   [void]$proc.Start()
-  Write-Host "[ke-local] spawned pid=$($proc.Id) CreateNoWindow=1 KE_SILENT=1 ($ServiceId)"
+  Write-Host "[ke-local] spawned pid=$($proc.Id) CreateNoWindow=1 KE_SILENT=1 UTF8-File ($ServiceId)"
   return $proc
 }
 
@@ -448,7 +520,7 @@ foreach ($sid in ($services.Keys | Sort-Object)) {
   $svc = $services[$sid]
   Write-Host "[ke-local] --- $($svc.service_id) (label=$($svc.label), from module $($svc.module_id)) ---"
 
-  $live = Find-LiveBase -ServiceId $svc.service_id -Label $svc.label -DefaultPort $svc.port -MaxTries $svc.max_tries
+  $live = Find-LiveBase -ServiceId $svc.service_id -Label $svc.label -DefaultPort $svc.port -MaxTries $svc.max_tries -ProbeTries 2
   if ($live) {
     Write-Host "[ke-local] already online: $live"
     $reused += $svc.service_id
@@ -509,7 +581,7 @@ if ($pending.Count -gt 0) {
     $next = New-Object System.Collections.Generic.List[object]
     foreach ($item in $still) {
       $svc = $item.svc
-      $live = Find-LiveBase -ServiceId $svc.service_id -Label $svc.label -DefaultPort $svc.port -MaxTries $svc.max_tries
+      $live = Find-LiveBase -ServiceId $svc.service_id -Label $svc.label -DefaultPort $svc.port -MaxTries $svc.max_tries -ProbeTries 4
       if ($live) {
         Write-Host "[ke-local] ready: $($svc.service_id) -> $live"
         $started += $svc.service_id
@@ -527,7 +599,7 @@ if ($pending.Count -gt 0) {
       $age = ((Get-Date) - $item.spawnedAt).TotalSeconds
       if (-not $alive -and $age -ge $graceSeconds) {
         # Re-check health once: start scripts may exit 0 when already online.
-        $live2 = Find-LiveBase -ServiceId $svc.service_id -Label $svc.label -DefaultPort $svc.port -MaxTries $svc.max_tries
+        $live2 = Find-LiveBase -ServiceId $svc.service_id -Label $svc.label -DefaultPort $svc.port -MaxTries $svc.max_tries -ProbeTries 4
         if ($live2) {
           Write-Host "[ke-local] ready: $($svc.service_id) -> $live2"
           $started += $svc.service_id
