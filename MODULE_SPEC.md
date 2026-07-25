@@ -244,6 +244,7 @@ class Handler(BaseModuleHandler):
 - [ ] 文件夹 + 符合 §2 的 `module.json`（含 §8 `local`）
 - [ ] 实现 `/health`（`service` === `local.label`）+ 业务 API
 - [ ] **独立检验**：`GET /ui` + `start_web.*`（§1.1）；不接宿主也能验收主能力
+- [ ] Python：`Ensure-PythonDeps`（§8.2），禁止每次无条件 pip；默认端口写入 §8 表 + ke catalog
 - [ ] 放到 Desktop 或 `Desktop/mo_kuai/` 扫描根
 - [ ] 重启 studio-api / Vite；确认 `/launcher/modules` 可见
 - [ ] **不**改 launcher / vite-local-proxy / LocalServiceId 硬编码表
@@ -287,14 +288,47 @@ class Handler(BaseModuleHandler):
 
 ### 现有模块
 
-| 目录 | id | category |
-|------|-----|----------|
-| text_to_voice | tts | text |
-| video_creat | compose | video |
-| video_download | download | video |
-| video_remotion | remotion | video |
-| rich_txt | richtext | text |
-| AI_in | ai-in | text |
+权威清单与 GitHub / 配方以 **ke** 仓库 `modules.catalog.json` 为准（`python scripts/resolve_catalog.py list`）。下表为端口速查（须与 catalog 一致）：
+
+| 目录 | service_id / id | category | defaultPort | git |
+|------|-----------------|----------|-------------|-----|
+| text_to_voice | tts | text | 8765 | AXJL4877/text_to_voice |
+| video_creat | compose | video | 8787 | AXJL4877/video_creat |
+| video_download | download | video | 8789 | AXJL4877/video_download |
+| audio_asr | asr | text | 8791 | AXJL4877/audio_asr |
+| rich_txt | richtext | text | 8793 | AXJL4877/rich_txt |
+| AI_in | ai-in | text | 8795 | AXJL4877/AI_in |
+| video_remotion | remotion | video | 8797 | AXJL4877/video_remotion |
+| video_transcript | transcript | text | 8799 | AXJL4877/video_transcript |
+| info_fetch | info-fetch | text | 8801 | AXJL4877/info_fetch |
+| chart_make | chart-make | text | 8803 | AXJL4877/chart_make |
+| douyin_assist | douyin-assist | video | 8805 | AXJL4877/douyin_assist |
+
+> `defaultPort` **全局唯一**：新增模块前先查本表 / catalog 挑一个没被占用的默认端口，不要撞车。  
+> 新增模块后：**必须**同步改本表、ke `modules.catalog.json`（含 `git_url` / `proxy_prefixes` / 配方），并推送对应 Git 仓。
+
+### 8.1 端口智能顺延（强制）
+
+`defaultPort` 只是**首选**，不是硬绑定。每个模块启动/被发现时必须遵守：
+
+1. **顺延占用**：首选端口被占 → 在 `defaultPort … defaultPort+maxTries-1` 范围内自动找下一个空闲端口启动
+2. **写回真实端口**：启动后把实际端口写进 `%USERPROFILE%\.scene-studio\ports.json`（含 `baseUrl`）
+3. **按 service 名认领**：探活须 `/health.service === local.label`；端口上是别的服务则继续顺延
+4. **复用已存在实例**：同名健康实例 → 刷新 ports.json 后复用并退出
+5. **envPort 覆盖**：可用环境变量固定端口；被占时仍顺延
+6. **调用方零硬编码**：一律从 ports.json 取 `baseUrl`，代理只认前缀
+
+### 8.2 启动脚本与依赖安装（Python）
+
+`start_api.ps1` / `start_web.ps1` 拉起服务时：
+
+1. 优先 API 脚本（`start_api.*`），避免无谓弹浏览器；宿主静默拉起时设 `KE_SILENT=1`
+2. **禁止**每次无条件 `pip install -r requirements.txt`（ke 一键启动会并行拉多模块，重复解析依赖极慢）
+3. 使用 `port_utils.ps1` 的 `Ensure-PythonDeps`：对 `requirements.txt` 做 SHA256 戳记（默认 `.venv/.requirements.sha256`）；**内容未变则跳过 pip**；变更后自动再装
+4. 环境变量：
+   - `SKIP_PIP_INSTALL=1` / `KE_SKIP_PIP=1` → 强制跳过
+   - `FORCE_PIP_INSTALL=1` / `KE_FORCE_PIP=1` → 强制重装
+5. 禁止把源机器 `.venv` 当源码复制；目标机首次启动自建环境
 
 ---
 
@@ -466,6 +500,11 @@ export { Result } from "./Result";
 ## 10.1 模块目录 `modules.catalog.json`
 
 ke 根目录维护可接入本机模块清单（GitHub、默认端口、`depends_on`、配方）。接入前先按 `service_id` 查表；`python scripts/resolve_catalog.py resolve|recipe` 可展开依赖。目录不是运行时扫描源，**不替代** `capabilities[]` 与 §11 契约。
+
+**当前 catalog 应收录（与 §8 表一致，共 11）**：  
+`download` · `asr` · `transcript` · `tts` · `compose` · `remotion` · `richtext` · `ai-in` · `info-fetch` · `chart-make` · `douyin-assist`
+
+常用配方示例：`collect-transcript`、`fund-flow-charts`（info-fetch+chart-make）、`finance-daily-outtake`（+douyin-assist）、`full-media-pipeline`。漏登 catalog = 接入方/AI 按表 clone 时会漏模块。
 
 ---
 
