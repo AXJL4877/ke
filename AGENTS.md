@@ -127,7 +127,8 @@ HTTP `POST /api/tasks` 与点击提交同一后端；**验收以点击跑通为�
 **跳过启动时全拉**：`$env:KE_AUTO_START_LOCAL='0'`（用到再由 on-demand 拉）  
 **只停壳、保留模块**：`$env:KE_STOP_LOCALS='0'`  
 **按需补拉**（任务执行前兜底）：`worker/tasks.py` + `KE_ON_DEMAND_LOCAL=1`（默认开）  
-**加速技巧**：各模块先手动起通一次 → 下次 `already online` 几乎不等；或 `KE_AUTO_START_LOCAL=0` 跳过开机全拉
+**加速技巧**：各模块先手动起通一次 → 下次 `already online` 几乎不等；或 `KE_AUTO_START_LOCAL=0` 跳过开机全拉  
+**跳过重复 pip**：各模块 `start_api` 会对 `requirements.txt` 做哈希戳；内容未变则跳过 `pip install`。强制重装：`$env:FORCE_PIP_INSTALL='1'`；全局跳过：`$env:SKIP_PIP_INSTALL='1'`（或 `KE_SKIP_PIP=1`）
 
 单独补拉：`.\scripts\Start-LocalServices.ps1` 或带 `-ServiceIds download`  
 无等待只拉起：`.\scripts\Start-LocalServices.ps1 -NoWait`

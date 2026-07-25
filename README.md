@@ -23,6 +23,7 @@
 - 健康检查通过后自动打开浏览器 `http://localhost:3000`
 - 停止：双击 `stop.bat`、点浏览器「退出 KE」、或关闭最后一个 KE 标签页（默认停壳 + 全部接入模块；只停壳：`$env:KE_STOP_LOCALS='0'`）
 - 跳过启动时拉下游：`$env:KE_AUTO_START_LOCAL='0'`（用到再拉；或先手动起通各模块，下次走 `already online`）
+- 依赖安装加速：模块 `requirements.txt` 未变则跳过 pip；强制重装 `$env:FORCE_PIP_INSTALL='1'`；全局跳过 `$env:SKIP_PIP_INSTALL='1'`
 - 关闭 `.venv` 自愈（仅排障）：`$env:KE_REPAIR_VENV='0'`
 
 排障：看 `logs/`；启动失败时 `start.ps1` 会打印日志末尾。
