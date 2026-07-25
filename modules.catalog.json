@@ -166,6 +166,67 @@
         "image-gen"
       ],
       "notes": "需配置 API Key；/run 为 multipart。模型名勿写死，运行时拉 /models。"
+    },
+    {
+      "service_id": "info-fetch",
+      "folder": "info_fetch",
+      "name": "通用信息抓取",
+      "label": "info_fetch",
+      "category": "text",
+      "git_url": "https://github.com/AXJL4877/info_fetch.git",
+      "visibility": "private",
+      "default_port": 8801,
+      "env_port": "INFO_FETCH_PORT",
+      "env_base_url": "INFO_FETCH_BASE_URL",
+      "stack": "python",
+      "proxy_prefixes": ["/info-fetch-api", "/info-fetch-health"],
+      "depends_on": [],
+      "must_keep_highlights": [
+        "fetch-core",
+        "sources-catalog",
+        "stock-ashare",
+        "video-link-search",
+        "pluggable-sources"
+      ],
+      "notes": "可插拔 source：stock / video_link 已可用；comment/web 可扩展。宿主脚本勿塞进模块仓。"
+    },
+    {
+      "service_id": "chart-make",
+      "folder": "chart_make",
+      "name": "制表模块",
+      "label": "chart_make",
+      "category": "text",
+      "git_url": "https://github.com/AXJL4877/chart_make.git",
+      "visibility": "private",
+      "default_port": 8803,
+      "env_port": "CHART_MAKE_PORT",
+      "env_base_url": "CHART_MAKE_BASE_URL",
+      "stack": "python",
+      "proxy_prefixes": ["/chart-make-api", "/chart-make-health"],
+      "depends_on": [],
+      "must_keep_highlights": ["chart-render", "chart-types"],
+      "notes": "JSON → 交互 HTML（line/area/candlestick/bar/wordcloud）；auto 按数据结构选图。产物 outputs/*.html。"
+    },
+    {
+      "service_id": "douyin-assist",
+      "folder": "douyin_assist",
+      "name": "抖音半自动发布",
+      "label": "douyin_assist",
+      "category": "video",
+      "git_url": "https://github.com/AXJL4877/douyin_assist.git",
+      "visibility": "private",
+      "default_port": 8805,
+      "env_port": "DOUYIN_ASSIST_PORT",
+      "env_base_url": "DOUYIN_ASSIST_BASE_URL",
+      "stack": "python",
+      "proxy_prefixes": ["/douyin-assist-api", "/douyin-assist-health"],
+      "depends_on": [],
+      "must_keep_highlights": [
+        "publish-prepare",
+        "job-status",
+        "standalone-ui"
+      ],
+      "notes": "本机 Edge 预填到待发布，不代点发布。多账号 accounts/<id>/.edge-profile；支持 /publish-batch。"
     }
   ],
   "recipes": [
@@ -216,6 +277,36 @@
       "name": "采集+配音+成片（大组合）",
       "modules": ["transcript", "download", "asr", "tts", "compose"],
       "description": "转写后配音再合成；接入成本高，按需裁剪。"
+    },
+    {
+      "id": "info-fetch-stock",
+      "name": "A股/视频信息抓取",
+      "modules": ["info-fetch"],
+      "description": "POST /fetch：stock 行情或 video_link 搜索。"
+    },
+    {
+      "id": "chart-only",
+      "name": "数据制表",
+      "modules": ["chart-make"],
+      "description": "JSON → 交互图表 HTML。"
+    },
+    {
+      "id": "fund-flow-charts",
+      "name": "行情抓取+制表",
+      "modules": ["info-fetch", "chart-make"],
+      "description": "info_fetch 拉数 → chart_make 出图；常用于板块资金流向类日更。"
+    },
+    {
+      "id": "douyin-publish",
+      "name": "抖音半自动发布",
+      "modules": ["douyin-assist"],
+      "description": "本机 Edge 上传预填；多账号串行；用户手点发布。"
+    },
+    {
+      "id": "finance-daily-outtake",
+      "name": "财经日更：抓取+制表+发布",
+      "modules": ["info-fetch", "chart-make", "douyin-assist"],
+      "description": "日更流水线骨架；配音/成片可再叠 tts、compose、remotion。"
     }
   ]
 }
