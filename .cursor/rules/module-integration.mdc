@@ -28,9 +28,14 @@ alwaysApply: true
 - 要求用户手动先开下游：契约写好后默认由 `start.ps1` 静默全拉（无命令窗）；执行任务前仍可按需补拉
 - 把源机器的 `.venv` 当作模块源码复制进 `deps/`；ke 启动器会在启动前校验 `pyvenv.cfg` + `Scripts/python.exe` + 最小 Python 探针，损坏则安全删除并交给源启动脚本重建
 - **在产品表单上堆联调小字**（端口、`/xxx-api`、模型内部 id、「独立检验」、默认展开的 Cookie 技术说明）→ 见 `product-ui.mdc` / `AGENTS.md`
+- 契约 `depends_on` 漏掉实际会 HTTP 调用的服务；健康失败须含 service + baseUrl
+- 下游发布失败把整单标 failed 从而吞掉已生成 URL（渲染成功应可落库；发布=软失败）
+- 模块/胶水硬编码另一工程盘符路径，或默认扫全 Desktop 造成跨仓污染
 
 ## 成功证据
 
 有 `integration.contract.json` 的模块：结果应含 `provenance`；异步建议有 `job_id`/`archive_id`。缺失时仅软提示（`_ke.hints` / 任务卡），不因此把任务标 failed。
+
+跨模块产物/时效通则（宿主权威）：`../scripts/docs/issues/跨模块产物与时效踩坑清单.md`、MODULE_SPEC §12。
 
 详情见 `AGENTS.md`、`docs/INTEGRATION_GUIDE.md`、`schema/integration.contract.schema.json`。

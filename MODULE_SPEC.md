@@ -1,7 +1,7 @@
 # MODULE_SPEC.md
 
-> KE 壳仓库内的完整规范副本。开发时以本文件为准；宿主权威副本见 `scripts/docs/specs/MODULE_SPEC.md`（https://github.com/AXJL4877/scripts）。  
-> 壳实现：`_registry` / `_ui-registry` / `module_loader` / `DynamicForm`。
+> **本文件不是权威全文。** HTTP 模块通则以宿主 [`scripts/docs/specs/MODULE_SPEC.md`](../scripts/docs/specs/MODULE_SPEC.md) 为准。  
+> 下文仅保留 **ke 壳**任务型速览与 §11 契约相关摘录；若与权威冲突，以 `scripts` 为准（尤其 §1.2 宿主发现、§12 产物/时效/软失败）。
 
 ## ke shell（任务型模块速览）
 
@@ -245,9 +245,10 @@ class Handler(BaseModuleHandler):
 - [ ] 实现 `/health`（`service` === `local.label`）+ 业务 API
 - [ ] **独立检验**：`GET /ui` + `start_web.*`（§1.1）；不接宿主也能验收主能力
 - [ ] Python：`Ensure-PythonDeps`（§8.2），禁止每次无条件 pip；默认端口写入 §8 表 + ke catalog
-- [ ] 放到 Desktop 或 `Desktop/mo_kuai/` 扫描根
+- [ ] 放到明确宿主根（与 ke / `scripts` / 其它模块并列，或 `ke/deps/<folder>`）；**禁止**依赖扫全 Desktop
 - [ ] 重启 studio-api / Vite；确认 `/launcher/modules` 可见
 - [ ] **不**改 launcher / vite-local-proxy / LocalServiceId 硬编码表
+- [ ] 遵守权威 MODULE_SPEC **§12**（产物命名 / 时效 / 发布软失败）
 
 ---
 
@@ -303,6 +304,7 @@ class Handler(BaseModuleHandler):
 | info_fetch | info-fetch | text | 8801 | AXJL4877/info_fetch |
 | chart_make | chart-make | text | 8803 | AXJL4877/chart_make |
 | douyin_assist | douyin-assist | video | 8805 | AXJL4877/douyin_assist |
+| comfy_video | comfy-video | video | 8807 | AXJL4877/comfy_video |
 
 > `defaultPort` **全局唯一**：新增模块前先查本表 / catalog 挑一个没被占用的默认端口，不要撞车。  
 > 新增模块后：**必须**同步改本表、ke `modules.catalog.json`（含 `git_url` / `proxy_prefixes` / 配方），并推送对应 Git 仓。
@@ -501,8 +503,8 @@ export { Result } from "./Result";
 
 ke 根目录维护可接入本机模块清单（GitHub、默认端口、`depends_on`、配方）。接入前先按 `service_id` 查表；`python scripts/resolve_catalog.py resolve|recipe` 可展开依赖。目录不是运行时扫描源，**不替代** `capabilities[]` 与 §11 契约。
 
-**当前 catalog 应收录（与 §8 表一致，共 11）**：  
-`download` · `asr` · `transcript` · `tts` · `compose` · `remotion` · `richtext` · `ai-in` · `info-fetch` · `chart-make` · `douyin-assist`
+**当前 catalog 应收录（与 §8 表一致，共 12）**：  
+`download` · `asr` · `transcript` · `tts` · `compose` · `remotion` · `richtext` · `ai-in` · `info-fetch` · `chart-make` · `douyin-assist` · `comfy-video`
 
 常用配方示例：`collect-transcript`、`fund-flow-charts`（info-fetch+chart-make）、`finance-daily-outtake`（+douyin-assist）、`full-media-pipeline`。漏登 catalog = 接入方/AI 按表 clone 时会漏模块。
 
@@ -550,3 +552,12 @@ ke 根目录维护可接入本机模块清单（GitHub、默认端口、`depends
 只接 `local.endpoint`、漏 `/cookies/*`、返回演示文案 → **未完成**。
 
 人读流程：`AGENTS.md`、`docs/INTEGRATION_GUIDE.md`。
+
+---
+
+## 12. 产物 / 时效 / 失败语义
+
+宿主权威副本在 `scripts/docs/specs/MODULE_SPEC.md` **§12**（与本仓并列的 `scripts` 仓库）。  
+踩坑清单：`scripts/docs/issues/跨模块产物与时效踩坑清单.md`。
+
+要点：单宿主无双树、产物带日期/job_id、当日强制新拉、`depends_on` 完整、发布软失败、文案与数据同批。

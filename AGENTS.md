@@ -64,9 +64,10 @@ HTTP `POST /api/tasks` 与点击提交同一后端；**验收以点击跑通为�
 任务成功后，可复用产物会自动登记到 **资产库**（侧栏「资产」）：
 
 - 触发：`execute_task` 成功 persist 之后；失败不入库
-- 抽取：优先 `module.json` 的 `asset_extract`；否则保守启发式（长文本 / `/files` URL）
+- 抽取：优先 `module.json` 的 `asset_extract`；否则保守启发式（长文本 `/files` URL）
 - 删除任务：**不**级联删资产
-- API：`/api/assets`；详情见 `docs/ASSET_VAULT_DESIGN.md`
+- API：`/api/assets`；从成功任务回填：`POST /api/assets/from-task/{task_id}`；详情见 `docs/ASSET_VAULT_DESIGN.md`
+- **失败语义**：渲染/成片成功应能落库；发布类下游失败应为软失败，勿整单 `failed` 吞掉已生成 URL（见宿主 MODULE_SPEC §12 / 跨模块踩坑清单）
 
 接入模块成功返回时尽量带可读 `title`、正文或文件 URL，并建议声明：
 
@@ -135,7 +136,7 @@ HTTP `POST /api/tasks` 与点击提交同一后端；**验收以点击跑通为�
 | 项 | 说明 |
 |----|------|
 | **保留本地模块** | 同步前备份并还原 `backend/modules/cj-*` 与 `frontend/modules/cj-*`（业务 Handler 不在上游 ke） |
-| **路径优先** | `Start-LocalServices` 解析：`ke/deps` → `../deps` → 同级 / Desktop `mo_kuai` |
+| **路径优先** | `Start-LocalServices`：`ke/deps` → 同级 / `../mo_kuai` → `MO_KUAI_ROOT`；**默认不扫 Desktop**（`KE_ALLOW_DESKTOP_SCAN=1` 才查 `Desktop\mo_kuai`） |
 | **必修合入** | `worker/module_loader.py`：`reload()` 后从 **live** `modules._base` 取 `BaseModuleHandler` / `assert_handler_contract`，否则 Handler 模块会再次全部丢（侧栏「暂无模块」） |
 | **验证** | 启动后 `GET /api/modules` 应有非 hidden 业务模块 |
 
@@ -164,3 +165,6 @@ HTTP `POST /api/tasks` 与点击提交同一后端；**验收以点击跑通为�
 - 写死端口 → 顺延后连错服务
 - 只返回固定文案 → 壳层 `_ke` 软提示
 - 表单堆「独立检验 / :8789 / 当前：model-id」→ 不符合普通用户需求（见「产品 UI 文案」）
+- `depends_on` 漏 ai-in / douyin → 解说/发布偶发挂；任务前须探活且错误带 service 名
+- 双树路径（deps 写、mo_kuai 读）→ 成片「生成了」却读到旧文件
+- 发布失败整单 failed → 资产不入库；应阶段拆分 + 软失败

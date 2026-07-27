@@ -11,7 +11,8 @@
 # - "pip install" / Creating .venv is status only — does not extend the budget.
 # - TCP probe before HTTP health (closed ports skip instantly).
 # - Silent start via UTF-8 -File bootstrap (Chinese paths safe; no ANSI -Command).
-# - Resolve module folders: ke/deps first, then mo_kuai / Desktop.
+# - Resolve module folders: ke/deps → sibling host / mo_kuai → MO_KUAI_ROOT
+#   （默认不扫全 Desktop；KE_ALLOW_DESKTOP_SCAN=1 才查 Desktop\mo_kuai）
 param(
   [string]$KeRoot = "",
   [int]$WaitSeconds = 45,
@@ -209,17 +210,21 @@ function Resolve-ModuleFolder {
   $names = New-Object System.Collections.Generic.List[string]
   if ($Label) { [void]$names.Add($Label) }
   [void]$names.Add($ServiceId)
-  # Prefer project deps/ (assembled host) before sibling mo_kuai / Desktop scans.
-  $roots = @(
-    (Join-Path $KeRoot "deps"),
-    (Join-Path $KeRoot "..\deps"),
-    (Join-Path $KeRoot ".."),
-    (Join-Path $KeRoot "..\mo_kuai"),
-    (Join-Path $env:USERPROFILE "Desktop\mo_kuai"),
-    (Join-Path $env:USERPROFILE "Desktop"),
-    "D:\Desktop\mo_kuai",
-    "D:\Desktop"
-  )
+  # Prefer project deps/ + sibling host_root. Desktop / D:\ 全盘扫描已移除（跨工程污染）；
+  # 需要时设 MO_KUAI_ROOT，或 KE_ALLOW_DESKTOP_SCAN=1 才追加 Desktop\mo_kuai。
+  $roots = New-Object System.Collections.Generic.List[string]
+  foreach ($r in @(
+      (Join-Path $KeRoot "deps"),
+      (Join-Path $KeRoot "..\deps"),
+      (Join-Path $KeRoot ".."),
+      (Join-Path $KeRoot "..\mo_kuai")
+    )) {
+    if ($r) { [void]$roots.Add($r) }
+  }
+  if ($env:MO_KUAI_ROOT) { [void]$roots.Add($env:MO_KUAI_ROOT) }
+  if ($env:KE_ALLOW_DESKTOP_SCAN -eq "1") {
+    [void]$roots.Add((Join-Path $env:USERPROFILE "Desktop\mo_kuai"))
+  }
   foreach ($name in $names) {
     foreach ($root in $roots) {
       if (-not $root) { continue }
@@ -392,6 +397,7 @@ function Start-ServiceSilent {
   $boot = @"
 `$ErrorActionPreference = 'Continue'
 `$env:KE_SILENT = '1'
+`$env:KE_MANAGED = '1'
 `$folder = $($Folder | ConvertTo-Json -Compress)
 `$scriptPath = $($ScriptPath | ConvertTo-Json -Compress)
 `$logPath = $($LogPath | ConvertTo-Json -Compress)
@@ -416,6 +422,11 @@ $runLine
     $psi.EnvironmentVariables["KE_SILENT"] = "1"
   } else {
     $psi.EnvironmentVariables.Add("KE_SILENT", "1")
+  }
+  if ($psi.EnvironmentVariables.ContainsKey("KE_MANAGED")) {
+    $psi.EnvironmentVariables["KE_MANAGED"] = "1"
+  } else {
+    $psi.EnvironmentVariables.Add("KE_MANAGED", "1")
   }
 
   $proc = New-Object System.Diagnostics.Process

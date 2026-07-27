@@ -314,7 +314,9 @@ compose 任务 → 选 Asset(audio) + Asset(image) → 成片 Asset(video)
 
 1. 权限/多用户隔离  
 2. S3  
-3. 从模块目录「扫描导入」历史 outputs（谨慎、默认关）
+3. 从模块目录 / `storage/`「扫描导入」历史 orphans（DB 重建后回填索引；默认谨慎、可手动触发）
+
+> 一期已提供 `POST /api/assets/from-task/{task_id}` 从成功任务回填。全量 orphan 扫描为后续能力。
 
 ---
 

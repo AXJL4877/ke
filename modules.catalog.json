@@ -227,6 +227,23 @@
         "standalone-ui"
       ],
       "notes": "本机 Edge 预填到待发布，不代点发布。多账号 accounts/<id>/.edge-profile；支持 /publish-batch。"
+    },
+    {
+      "service_id": "comfy-video",
+      "folder": "comfy_video",
+      "name": "ComfyUI 视频",
+      "label": "comfy_video",
+      "category": "video",
+      "git_url": "https://github.com/AXJL4877/comfy_video.git",
+      "visibility": "private",
+      "default_port": 8807,
+      "env_port": "COMFY_VIDEO_PORT",
+      "env_base_url": "COMFY_VIDEO_BASE_URL",
+      "stack": "python",
+      "proxy_prefixes": ["/comfy-video-api", "/comfy-video-health"],
+      "depends_on": [],
+      "must_keep_highlights": ["generate-core", "workflows-list", "job-progress"],
+      "notes": "ComfyUI 薄网关；workflow 模板 + 异步 job。骨架可用 dry_run；真机需本机 ComfyUI（COMFYUI_BASE_URL）。"
     }
   ],
   "recipes": [
@@ -301,6 +318,12 @@
       "name": "抖音半自动发布",
       "modules": ["douyin-assist"],
       "description": "本机 Edge 上传预填；多账号串行；用户手点发布。"
+    },
+    {
+      "id": "comfy-video-local",
+      "name": "本机 ComfyUI 视频",
+      "modules": ["comfy-video"],
+      "description": "本地 ComfyUI workflow 出片；骨架可 dry_run。"
     },
     {
       "id": "finance-daily-outtake",
