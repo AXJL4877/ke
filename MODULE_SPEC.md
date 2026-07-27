@@ -1,7 +1,8 @@
 # MODULE_SPEC.md
 
 > **本文件不是权威全文。** HTTP 模块通则以宿主 [`scripts/docs/specs/MODULE_SPEC.md`](../scripts/docs/specs/MODULE_SPEC.md) 为准。  
-> 下文仅保留 **ke 壳**任务型速览与 §11 契约相关摘录；若与权威冲突，以 `scripts` 为准（尤其 §1.2 宿主发现、§12 产物/时效/软失败）。
+> 下文仅保留 **ke 壳**任务型速览与 §11 契约相关摘录；若与权威冲突，以 `scripts` 为准（尤其 §1.2 宿主发现、§12 产物/时效/软失败、§13 业务进度）。
+> 业务进度词表：[docs/TASK_PROGRESS.md](./docs/TASK_PROGRESS.md) · 宿主 `scripts/docs/specs/TASK_PROGRESS.md`。
 
 ## ke shell（任务型模块速览）
 
