@@ -9,6 +9,12 @@ router = APIRouter()
 
 
 def _to_out(manifest: dict) -> ModuleManifestOut:
+    pipeline = manifest.get("progress_pipeline")
+    if not isinstance(pipeline, list):
+        pipeline = None
+    else:
+        pipeline = [str(x) for x in pipeline if str(x).strip()]
+    preset = manifest.get("progress_preset")
     return ModuleManifestOut(
         id=manifest["id"],
         name=manifest["name"],
@@ -21,6 +27,8 @@ def _to_out(manifest: dict) -> ModuleManifestOut:
         runtime=manifest.get("runtime") or {},
         local=manifest.get("local"),
         capabilities=manifest.get("capabilities"),
+        progress_pipeline=pipeline or None,
+        progress_preset=str(preset) if preset else None,
         shell=manifest.get("_shell"),
     )
 

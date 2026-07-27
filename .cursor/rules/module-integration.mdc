@@ -38,4 +38,6 @@ alwaysApply: true
 
 跨模块产物/时效通则（宿主权威）：`../scripts/docs/issues/跨模块产物与时效踩坑清单.md`、MODULE_SPEC §12。
 
+业务进度（撰写文案/画面/配音/叠BGM）：见 `task-progress.mdc`、`scripts/docs/specs/TASK_PROGRESS.md`；Handler 必须 `report_stage`。
+
 详情见 `AGENTS.md`、`docs/INTEGRATION_GUIDE.md`、`schema/integration.contract.schema.json`。

@@ -88,6 +88,9 @@ export interface components {
       status: "pending" | "processing" | "done" | "failed";
       result: Record<string, unknown> | null;
       error_message: string | null;
+      progress?: number | null;
+      progress_message?: string | null;
+      progress_stage?: string | null;
       created_at: string;
       updated_at: string;
     };

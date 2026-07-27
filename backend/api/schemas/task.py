@@ -17,6 +17,9 @@ class TaskOut(BaseModel):
     status: str
     result: dict[str, Any] | None
     error_message: str | None
+    progress: float | None = None
+    progress_message: str | None = None
+    progress_stage: str | None = None
     created_at: datetime
     updated_at: datetime
 

@@ -15,6 +15,9 @@ class ModuleManifestOut(BaseModel):
     runtime: dict[str, Any] = Field(default_factory=dict)
     local: dict[str, Any] | None = None
     capabilities: list[dict[str, Any]] | None = None
+    # 业务进度环节（见 TASK_PROGRESS.md）
+    progress_pipeline: list[str] | None = None
+    progress_preset: str | None = None
     # Shell-injected metadata (anti-mock + capabilities DoD)
     shell: dict[str, Any] | None = None
 

@@ -34,14 +34,28 @@ export function TaskProgressHeader({
   tasksLoading?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const hasLive =
+    typeof task?.progress === "number" && Number.isFinite(task.progress);
   const meta = task
     ? BAR[task.status] ?? { pct: 0, bar: "bg-muted-foreground/30" }
     : { pct: 0, bar: "bg-muted-foreground/25" };
+  const pct = hasLive
+    ? Math.max(0, Math.min(100, Math.round(task!.progress!)))
+    : meta.pct;
+  const bar =
+    task?.status === "processing" && !hasLive
+      ? "progress-indeterminate"
+      : meta.bar;
   const title =
     (task && modules?.find((m) => m.id === task.module_id)?.name) ||
     task?.module_id ||
     null;
   const parsed = parseStageError(task?.error_message);
+  const headerHint =
+    task?.progress_message?.trim() ||
+    (task?.progress_stage
+      ? task.progress_stage
+      : null);
 
   return (
     <div className="overflow-hidden rounded-md border border-border/70 bg-card/80">
@@ -53,10 +67,18 @@ export function TaskProgressHeader({
         aria-label={open ? "收起进度详情" : "展开进度详情"}
       >
         <Progress
-          value={meta.pct}
+          value={pct}
           className="h-1 flex-1"
-          indicatorClassName={meta.bar}
+          indicatorClassName={bar}
         />
+        {headerHint && task?.status === "processing" ? (
+          <span className="max-w-[8rem] shrink-0 truncate text-[10px] text-sky-800">
+            {headerHint}
+          </span>
+        ) : null}
+        <span className="shrink-0 tabular-nums text-[10px] text-muted-foreground">
+          {task ? `${pct}%` : ""}
+        </span>
         <ChevronDown
           className={cn(
             "h-3.5 w-3.5 shrink-0 text-muted-foreground/70 transition-transform duration-200",
@@ -85,6 +107,17 @@ export function TaskProgressHeader({
                   status={task.status}
                   failedStage={
                     task.status === "failed" ? parsed.stage : null
+                  }
+                  progress={task.progress}
+                  progressMessage={task.progress_message}
+                  progressStage={task.progress_stage}
+                  progressPipeline={
+                    modules?.find((m) => m.id === task.module_id)
+                      ?.progress_pipeline
+                  }
+                  progressPreset={
+                    modules?.find((m) => m.id === task.module_id)
+                      ?.progress_preset
                   }
                 />
               </>

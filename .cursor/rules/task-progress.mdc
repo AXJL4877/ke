@@ -1,0 +1,37 @@
+---
+description: 任务业务进度必须用标准环节（撰写文案/画面/配音/叠BGM等），禁止只显示笼统处理中
+alwaysApply: true
+---
+
+# 任务业务进度（给智能体）
+
+权威：`scripts/docs/specs/TASK_PROGRESS.md` · ke `core/progress_stages.py` · `report_stage()`
+
+## 写 / 改 Handler 时必须
+
+在每个业务步骤**开始**调用：
+
+```python
+from core.task_progress_ctx import report_stage
+report_stage("fetch_data")
+report_stage("write_copy")
+report_stage("render_cover")
+report_stage("render_video")
+report_stage("voiceover", message="配音 3/8 句")
+report_stage("mix_voice")
+report_stage("mix_bgm")
+report_stage("export")
+report_stage("publish_prepare")  # 半自动；失败勿抹掉已 export
+```
+
+## 标准 id（勿自造中文当 stage）
+
+`fetch_data` · `write_copy` · `render_cover` · `render_video` · `voiceover` · `mix_voice` · `mix_bgm` · `export` · `publish_prepare` · `done`
+
+日更成片预设：`progress_preset: "fund-flow-daily"` 或完整 `progress_pipeline` 数组写入 `module.json`。
+
+## 禁止
+
+- 只报壳层 `run` / 文案「处理中」
+- 自造 `配音中` 当 `progress_stage`（应用 id=`voiceover`，message 用中文）
+- 发布失败把整单 failed 吞掉已导出成片

@@ -8,10 +8,17 @@ import sys
 from fastapi import APIRouter, HTTPException
 
 from core.integration_contract import ke_root
+from core.progress_stages import catalog_payload
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+@router.get("/progress-stages")
+def progress_stages() -> dict:
+    """标准业务进度词表 + 配方预设（智能体 / 前端对齐用）。"""
+    return catalog_payload()
 
 
 @router.post("/shutdown")

@@ -34,6 +34,9 @@ app.mount("/files", StaticFiles(directory=str(local_path)), name="files")
 @app.on_event("startup")
 def on_startup() -> None:
     Base.metadata.create_all(bind=engine)
+    from db.schema_ensure import ensure_schema
+
+    ensure_schema(engine)
 
 
 @app.get("/health")

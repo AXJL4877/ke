@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text, Uuid, func
+from sqlalchemy import JSON, DateTime, Float, ForeignKey, Integer, String, Text, Uuid, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from db.base import Base
@@ -33,6 +33,11 @@ class Task(Base):
     status: Mapped[str] = mapped_column(String(32), default="pending", index=True)
     result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # 0–100；processing 时由 worker / poll_job 回调刷新
+    progress: Mapped[float | None] = mapped_column(Float, nullable=True)
+    progress_message: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    # validate | load | run | persist | 下游自定义
+    progress_stage: Mapped[str | None] = mapped_column(String(64), nullable=True)
     user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

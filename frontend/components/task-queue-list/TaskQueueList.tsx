@@ -15,6 +15,9 @@ type Task = {
   status: string;
   result: Record<string, unknown> | null;
   error_message: string | null;
+  progress?: number | null;
+  progress_message?: string | null;
+  progress_stage?: string | null;
   created_at: string;
 };
 
@@ -39,7 +42,7 @@ export function TaskQueueList({
     refetchInterval: (query) => {
       const list = query.state.data ?? [];
       const hasActive = list.some((t) => ACTIVE.has(t.status));
-      return hasActive ? 1500 : 8000;
+      return hasActive ? 800 : 8000;
     },
   });
 

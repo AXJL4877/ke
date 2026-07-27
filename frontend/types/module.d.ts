@@ -57,6 +57,10 @@ export type ModuleManifest = {
   };
   local?: Record<string, unknown>;
   capabilities?: ModuleCapability[];
+  /** 业务进度环节 id 列表，见 TASK_PROGRESS.md */
+  progress_pipeline?: string[];
+  /** 或引用预设：fund-flow-daily / transcript-pipeline … */
+  progress_preset?: string;
   /** 壳注入：防 mock / capabilities 警告 */
   shell?: {
     warnings?: string[];

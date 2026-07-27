@@ -14,7 +14,7 @@ import logging
 import os
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import httpx
 
@@ -252,6 +252,7 @@ class LocalServiceClient:
         timeout_seconds: float = 1800.0,
         done_statuses: tuple[str, ...] = ("done", "completed", "success"),
         fail_statuses: tuple[str, ...] = ("error", "failed", "cancelled", "canceled"),
+        on_tick: Callable[[dict[str, Any]], None] | None = None,
     ) -> dict[str, Any]:
         deadline = time.monotonic() + timeout_seconds
         path = path_template.format(job_id=job_id)
@@ -265,6 +266,37 @@ class LocalServiceClient:
                 )
             last = raw
             status = str(raw.get("status") or raw.get("state") or "").lower()
+            if on_tick is not None:
+                try:
+                    on_tick(raw)
+                except Exception:
+                    pass
+            else:
+                # Default: push downstream progress into current ke task (if any)
+                try:
+                    from core.task_progress_ctx import report_progress
+
+                    jp = raw.get("progress")
+                    if jp is None and isinstance(raw.get("percent"), (int, float)):
+                        jp = raw.get("percent")
+                    msg = (
+                        raw.get("stage")
+                        or raw.get("message")
+                        or raw.get("status_message")
+                        or raw.get("step")
+                    )
+                    if isinstance(msg, str):
+                        msg = msg.strip() or None
+                    elif msg is not None:
+                        msg = str(msg)
+                    if jp is not None or msg:
+                        report_progress(
+                            job_progress=float(jp) if jp is not None else None,
+                            message=msg,
+                            stage="run",
+                        )
+                except Exception:
+                    pass
             if status in done_statuses:
                 return raw
             if status in fail_statuses:

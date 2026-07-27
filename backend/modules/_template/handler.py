@@ -30,19 +30,22 @@ class Handler(BaseModuleHandler):
             client_from_source,
             map_params,
         )
+        # 业务进度：见 scripts/docs/specs/TASK_PROGRESS.md
+        from core.task_progress_ctx import report_stage
 
         contract_path = Path(__file__).resolve().parent / "integration.contract.json"
         contract = load_json(contract_path)
-        # 复制后请把 module_id 改成真实 id；此处仅示范调用链
         try:
             validate_contract_shape(contract)
         except IntegrationContractError:
-            # 模板文件里的 REPLACE_WITH_KE_MODULE_ID 会在真实模块中改掉
             pass
 
         source = contract["source"]
         execution = contract.get("execution") or {}
         timeout = float(execution.get("timeout_seconds") or 1800)
+
+        # 示例：按业务环节上报（真实模块换成 fetch_data / write_copy / voiceover …）
+        report_stage("download", message="提交下载任务")
 
         try:
             client = client_from_source(source, timeout_seconds=timeout)
@@ -50,7 +53,6 @@ class Handler(BaseModuleHandler):
             raise RuntimeError(str(exc)) from exc
 
         body = map_params(params, contract.get("params_map"))
-        # 示例：异步下载类。真实模块按源 local.endpoint 调整 path。
         endpoint = "/download"
         submitted = client.post_json(endpoint, body)
         if not isinstance(submitted, dict):
@@ -58,7 +60,7 @@ class Handler(BaseModuleHandler):
 
         job_id = submitted.get("job_id") or submitted.get("id")
         if not job_id:
-            # 同步短路径：直接带 provenance 返回（仍禁止 mock）
+            report_stage("export")
             return {
                 **submitted,
                 "ok": True,
@@ -69,12 +71,14 @@ class Handler(BaseModuleHandler):
                 ),
             }
 
+        report_stage("download", message="下载进行中")
         job = client.poll_job(
             str(job_id),
             path_template=str(execution.get("job_path_template") or "/jobs/{job_id}"),
             interval_ms=int(execution.get("poll_interval_ms") or 2000),
             timeout_seconds=timeout,
         )
+        report_stage("export")
         return {
             "ok": True,
             "job_id": str(job_id),

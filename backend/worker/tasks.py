@@ -2,7 +2,7 @@
 Data-driven task dispatch: handler = get_handler(module_id).run(params).
 No module_id if-else.
 
-Execution stages (for explicit error UI):
+Execution stages (for explicit error UI + live progress):
   validate -> load -> run -> persist
 """
 from __future__ import annotations
@@ -23,6 +23,16 @@ STAGE_LABELS = {
     "persist": "落库",
 }
 
+# Shell pipeline progress anchors (0–100). Downstream job ticks map into run band.
+STAGE_PROGRESS = {
+    "validate": 5.0,
+    "load": 15.0,
+    "ensure_deps": 22.0,
+    "run": 28.0,
+    "persist": 92.0,
+    "done": 100.0,
+}
+
 
 class StageError(Exception):
     """Carries which pipeline stage failed for structured error_message."""
@@ -33,6 +43,48 @@ class StageError(Exception):
         label = STAGE_LABELS.get(stage, stage)
         mid = f" 模块 {module_id}" if module_id else ""
         super().__init__(f"[{stage}|{label}]{mid}：{message}")
+
+
+def _commit_progress(
+    db,
+    task,
+    *,
+    stage: str | None,
+    progress: float | None,
+    message: str | None,
+) -> None:
+    """Persist live progress so polling clients can show current step."""
+    if stage is not None:
+        task.progress_stage = stage
+    if progress is not None:
+        task.progress = max(0.0, min(100.0, float(progress)))
+    if message is not None:
+        task.progress_message = (message or "")[:256] or None
+    db.commit()
+
+
+def update_task_progress(
+    task_id: str,
+    *,
+    progress: float | None = None,
+    message: str | None = None,
+    stage: str | None = None,
+) -> None:
+    """Short session write for handlers / poll_job callbacks."""
+    from db.models import Task
+    from db.session import SessionLocal
+
+    db = SessionLocal()
+    try:
+        task = db.get(Task, UUID(task_id))
+        if task is None or task.status not in ("pending", "processing"):
+            return
+        _commit_progress(db, task, stage=stage, progress=progress, message=message)
+    except Exception:
+        logger.exception("update_task_progress failed for %s", task_id)
+        db.rollback()
+    finally:
+        db.close()
 
 
 def execute_task(task_id: str) -> dict:
@@ -54,9 +106,22 @@ def execute_task(task_id: str) -> dict:
         module_id = task.module_id
         task.status = "processing"
         task.error_message = None
-        db.commit()
+        _commit_progress(
+            db,
+            task,
+            stage="validate",
+            progress=STAGE_PROGRESS["validate"],
+            message="校验参数",
+        )
 
         stage = "load"
+        _commit_progress(
+            db,
+            task,
+            stage="load",
+            progress=STAGE_PROGRESS["load"],
+            message="加载模块",
+        )
         loader = get_module_loader(force_reload=False)
         try:
             handler = loader.get_handler(task.module_id)
@@ -65,6 +130,13 @@ def execute_task(task_id: str) -> dict:
 
         contract = loader.get_contract(task.module_id) if module_id else None
         if contract:
+            _commit_progress(
+                db,
+                task,
+                stage="load",
+                progress=STAGE_PROGRESS["ensure_deps"],
+                message="探活依赖服务",
+            )
             try:
                 from core.local_service_launcher import ensure_local_services_for_contract
 
@@ -75,12 +147,27 @@ def execute_task(task_id: str) -> dict:
                 )
 
         stage = "run"
+        _commit_progress(
+            db,
+            task,
+            stage="run",
+            progress=STAGE_PROGRESS["run"],
+            message="执行模块",
+        )
+
+        # Allow handlers / poll_job to report finer progress for this task
+        from core.task_progress_ctx import task_progress_scope
+
         t0 = time.perf_counter()
         try:
-            result = handler.run(dict(task.input_params or {}))
+            with task_progress_scope(task_id):
+                result = handler.run(dict(task.input_params or {}))
         except Exception as exc:
             raise StageError("run", str(exc), module_id) from exc
         duration_ms = int((time.perf_counter() - t0) * 1000)
+
+        # Refresh after long run (other session may have updated progress)
+        db.refresh(task)
 
         settings = get_settings()
         evidence_hints: list[str] = []
@@ -101,7 +188,6 @@ def execute_task(task_id: str) -> dict:
                 )
             else:
                 fast_threshold = settings.fast_completion_ms
-            # Soft only: collect hints, never fail the task for mock/evidence
             evidence_hints = validate_task_result_against_contract(
                 result, contract, duration_ms=duration_ms
             )
@@ -118,16 +204,25 @@ def execute_task(task_id: str) -> dict:
             )
 
         stage = "persist"
+        _commit_progress(
+            db,
+            task,
+            stage="persist",
+            progress=STAGE_PROGRESS["persist"],
+            message="写入结果",
+        )
         try:
             task.result = result
             task.status = "done"
             task.error_message = None
+            task.progress = STAGE_PROGRESS["done"]
+            task.progress_message = "已完成"
+            task.progress_stage = "persist"
             db.commit()
         except Exception as exc:
             db.rollback()
             raise StageError("persist", str(exc), module_id) from exc
 
-        # Asset vault: best-effort ingest after success (never fail the task)
         if isinstance(result, dict):
             try:
                 from core.assets import register_assets_from_task
@@ -159,6 +254,8 @@ def execute_task(task_id: str) -> dict:
         if task is not None:
             task.status = "failed"
             task.error_message = str(exc)
+            task.progress_stage = exc.stage
+            task.progress_message = STAGE_LABELS.get(exc.stage, exc.stage) + "失败"
             db.commit()
         return {"ok": False, "error": str(exc), "stage": exc.stage}
     except Exception as exc:
@@ -169,6 +266,8 @@ def execute_task(task_id: str) -> dict:
             mid = f" 模块 {module_id}" if module_id else ""
             task.status = "failed"
             task.error_message = f"[{stage}|{label}]{mid}：{exc}"
+            task.progress_stage = stage
+            task.progress_message = f"{label}失败"
             db.commit()
         return {"ok": False, "error": str(exc), "stage": stage}
     finally:
@@ -178,20 +277,36 @@ def execute_task(task_id: str) -> dict:
 def enqueue_task(task_id: str) -> dict | None:
     """
     Queue or run a task.
-    Local default TASK_SYNC=true: always execute_task (no Redis / worker needed).
-    Returns execute_task result when run sync; otherwise None.
+    Local default TASK_SYNC=true: execute in a daemon thread (no Redis) so the
+    API can return immediately and clients poll live progress.
+    Returns None when started async; execute_task result only if forced sync fallback.
     """
     from api.config import get_settings
 
     settings = get_settings()
     if getattr(settings, "task_sync", True):
-        return execute_task(task_id)
+        import threading
+
+        threading.Thread(
+            target=execute_task,
+            args=(task_id,),
+            name=f"ke-task-{task_id[:8]}",
+            daemon=True,
+        ).start()
+        return None
 
     try:
         process_task.delay(task_id)
     except Exception as exc:
-        logger.warning("celery enqueue failed, running sync: %s", exc)
-        return execute_task(task_id)
+        logger.warning("celery enqueue failed, running in thread: %s", exc)
+        import threading
+
+        threading.Thread(
+            target=execute_task,
+            args=(task_id,),
+            name=f"ke-task-{task_id[:8]}",
+            daemon=True,
+        ).start()
     return None
 
 

@@ -24,6 +24,8 @@
     "async": true,
     "timeout_seconds": 1800
   },
+  "progress_preset": "transcript-pipeline",
+  "progress_pipeline": ["download", "transcribe", "write_copy", "export"],
   "capabilities": [
     {
       "id": "template-placeholder",

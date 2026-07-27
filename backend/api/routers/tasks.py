@@ -2,14 +2,13 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from api.config import get_settings
 from api.deps import DbDep, get_optional_user
 from api.schemas.task import TaskCreate, TaskOut
 from core.anti_mock import find_mock_params
 from db.models import Task
 from db.session import SessionLocal
 from worker.module_loader import get_module_loader
-from worker.tasks import enqueue_task, execute_task
+from worker.tasks import enqueue_task
 
 router = APIRouter()
 
@@ -43,6 +42,9 @@ def create_task(
         module_id=body.module_id,
         input_params=params,
         status="pending",
+        progress=0.0,
+        progress_message="排队中",
+        progress_stage="validate",
         user_id=user.id if user else None,
     )
     db.add(task)
@@ -54,10 +56,9 @@ def create_task(
     db.expunge(task)
     db.commit()
 
-    if get_settings().task_sync:
-        execute_task(str(task_id))
-    else:
-        enqueue_task(str(task_id))
+    # Always return quickly so the UI can poll progress / stage chips.
+    # task_sync=true → in-process daemon thread (no Redis); else Celery.
+    enqueue_task(str(task_id))
 
     s2 = SessionLocal()
     try:
@@ -100,6 +101,9 @@ def get_task_result(task_id: UUID, db: DbDep) -> dict:
         "status": task.status,
         "result": task.result,
         "error_message": task.error_message,
+        "progress": task.progress,
+        "progress_message": task.progress_message,
+        "progress_stage": task.progress_stage,
     }
 
 

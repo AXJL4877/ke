@@ -21,6 +21,9 @@ type Task = {
   status: string;
   result: Record<string, unknown> | null;
   error_message: string | null;
+  progress?: number | null;
+  progress_message?: string | null;
+  progress_stage?: string | null;
   created_at: string;
 };
 
@@ -140,6 +143,11 @@ export function TaskCard({
           <ProgressTracker
             status={task.status}
             failedStage={task.status === "failed" ? parsed.stage : null}
+            progress={task.progress}
+            progressMessage={task.progress_message}
+            progressStage={task.progress_stage}
+            progressPipeline={manifest?.progress_pipeline}
+            progressPreset={manifest?.progress_preset}
           />
           {showMockBanner ? (
             <div className="rounded-md border border-amber-500/40 bg-amber-500/15 px-3 py-2 text-sm text-amber-950">

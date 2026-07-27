@@ -59,6 +59,17 @@
 
 HTTP `POST /api/tasks` 与点击提交同一后端；**验收以点击跑通为准**。catalog `recipes` 只表示该装哪些模块，不是一键运行时。
 
+## 任务业务进度
+
+进度条展示**业务环节**（不是只有「处理中」）。词表与用法：
+
+- 规范：宿主 `scripts/docs/specs/TASK_PROGRESS.md`
+- 实现：`core/progress_stages.py` + `report_stage()`；`GET /api/system/progress-stages`
+- Handler 每个步骤：`from core.task_progress_ctx import report_stage` → `report_stage("voiceover")` 等
+- `module.json`：`progress_pipeline` 或 `progress_preset`（如 `fund-flow-daily`）
+
+日更成片顺序：拉取数据 → 撰写文案 → 渲封面 → 渲画面 → 配音 → 混解说 → 叠 BGM → 导出 → 发布预填。
+
 ## 资产部门（一期）
 
 任务成功后，可复用产物会自动登记到 **资产库**（侧栏「资产」）：

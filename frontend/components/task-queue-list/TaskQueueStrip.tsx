@@ -3,6 +3,7 @@
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { parseStageError, STAGE_LABELS } from "@/lib/stage-error";
+import { stageDisplayLabel } from "@/lib/progress-stages";
 import { cn } from "@/lib/utils";
 import type { ModuleManifest } from "@/types/module";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -16,6 +17,9 @@ export type QueueTask = {
   status: string;
   result: Record<string, unknown> | null;
   error_message: string | null;
+  progress?: number | null;
+  progress_message?: string | null;
+  progress_stage?: string | null;
   created_at: string;
 };
 
@@ -131,12 +135,23 @@ export function TaskQueueStrip({
             task.module_id;
           const parsed = parseStageError(task.error_message);
           const selected = selectedId === task.id;
+          const hasLive =
+            typeof task.progress === "number" && Number.isFinite(task.progress);
+          const pct = hasLive
+            ? Math.max(0, Math.min(100, Math.round(task.progress!)))
+            : meta.pct;
+          const bar =
+            task.status === "processing" && !hasLive
+              ? "progress-indeterminate"
+              : meta.bar;
           const stageTag =
             task.status === "failed" && parsed.stage
-              ? STAGE_LABELS[parsed.stage] || parsed.stage
-              : task.status === "processing"
-                ? "执行"
-                : null;
+              ? STAGE_LABELS[parsed.stage] ||
+                stageDisplayLabel(parsed.stage) ||
+                parsed.stage
+              : task.progress_message?.trim() ||
+                stageDisplayLabel(task.progress_stage) ||
+                (task.status === "processing" ? "执行中" : null);
 
           return (
             <li
@@ -168,17 +183,20 @@ export function TaskQueueStrip({
                 </div>
                 <div className="mt-1.5">
                   <Progress
-                    value={meta.pct}
+                    value={pct}
                     className="h-1.5"
-                    indicatorClassName={meta.bar}
+                    indicatorClassName={bar}
                   />
                 </div>
                 <div className="mt-1.5 flex items-center justify-between gap-1">
                   <span className="font-mono text-[10px] text-muted-foreground">
                     #{task.id.slice(0, 6)}
+                    {hasLive ? (
+                      <span className="ml-1 tabular-nums">{pct}%</span>
+                    ) : null}
                   </span>
                   {stageTag ? (
-                    <span className="rounded border border-border/70 px-1 py-px text-[10px] text-muted-foreground">
+                    <span className="max-w-[5.5rem] truncate rounded border border-border/70 px-1 py-px text-[10px] text-muted-foreground">
                       {stageTag}
                     </span>
                   ) : null}
